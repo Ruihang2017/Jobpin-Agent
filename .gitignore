@@ -1,0 +1,7 @@
+# Superpowers subagent-driven-development scratch (ledger, task briefs, review packages)
+.superpowers/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
