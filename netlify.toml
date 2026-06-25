@@ -1,0 +1,10 @@
+# Zero-build static site. Netlify serves the repo root as-is.
+[build]
+  publish = "."
+  command = ""
+
+# Keep the unlisted review site out of search indexes.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
