@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Jobpin Agent — Docs</title>
+  <link rel="stylesheet" href="assets/vendor/github.min.css" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button id="menu-btn" class="icon-btn" aria-label="Toggle sections">☰</button>
+    <div class="brand">Jobpin Agent <span>· Docs</span></div>
+    <nav class="controls">
+      <div class="seg" id="doc-switch">
+        <button data-doc="prd">PRD</button>
+        <button data-doc="plan">Production Plan</button>
+      </div>
+      <div class="seg" id="lang-switch">
+        <button data-lang="en">EN</button>
+        <button data-lang="zh">中文</button>
+      </div>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav id="toc" class="toc"></nav>
+    </aside>
+    <main class="main">
+      <article id="content" class="content"></article>
+
+      <section id="feedback" class="feedback">
+        <h2>Leave feedback</h2>
+        <p class="feedback-note">Your comments go straight to the team — no account needed.</p>
+        <form name="feedback" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="feedback-form">
+          <input type="hidden" name="form-name" value="feedback" />
+          <p class="hp" aria-hidden="true"><label>Leave this empty <input name="bot-field" /></label></p>
+          <div class="field">
+            <label for="fb-name">Name</label>
+            <input id="fb-name" type="text" name="name" required />
+          </div>
+          <div class="field">
+            <label for="fb-email">Email (optional)</label>
+            <input id="fb-email" type="email" name="email" />
+          </div>
+          <div class="field">
+            <label for="fb-section">Which section</label>
+            <input id="fb-section" type="text" name="section" />
+          </div>
+          <div class="field">
+            <label for="fb-comment">Comment</label>
+            <textarea id="fb-comment" name="comment" rows="4" required></textarea>
+          </div>
+          <p class="form-status" role="status"></p>
+          <button type="submit" class="btn-primary">Send feedback</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <button id="feedback-fab" class="fab" aria-label="Leave feedback">💬 Feedback</button>
+
+  <script src="assets/vendor/marked.min.js"></script>
+  <script src="assets/vendor/highlight.min.js"></script>
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>
