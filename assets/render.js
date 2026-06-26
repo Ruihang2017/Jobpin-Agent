@@ -31,7 +31,7 @@ function slugHeadings(root) {
   const used = new Set();
   root.querySelectorAll('h1, h2, h3, h4').forEach((h) => {
     let base = h.textContent.trim().toLowerCase()
-      .replace(/[^\w一-鿿]+/g, '-')
+      .replace(/[^\w\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/gu, '-')
       .replace(/^-+|-+$/g, '');
     if (!base) base = 'section';
     let slug = base;

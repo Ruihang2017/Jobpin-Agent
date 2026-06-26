@@ -11,8 +11,6 @@ export function initFeedback(form, getContext) {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const status = form.querySelector('.form-status');
-    const data = {};
-    new FormData(form).forEach((value, key) => { data[key] = value; });
 
     if (status) { status.textContent = 'Sending…'; status.className = 'form-status'; }
 
@@ -20,7 +18,7 @@ export function initFeedback(form, getContext) {
       const res = await fetch('/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: encode(data),
+        body: new URLSearchParams(new FormData(form)).toString(),
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       form.innerHTML = '<p class="thanks">Thanks — your feedback was sent. 🙏</p>';
@@ -31,10 +29,4 @@ export function initFeedback(form, getContext) {
       }
     }
   });
-}
-
-function encode(data) {
-  return Object.keys(data)
-    .map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(data[key]))
-    .join('&');
 }
