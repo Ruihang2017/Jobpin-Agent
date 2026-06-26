@@ -547,6 +547,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **范围（Scope）**：
 - **模型路由器**：按任务难度 / 隐私级 / 硬件能力动态选择本地模型（Ollama/llama.cpp 跑 Llama/Qwen/Mistral）或云模型（可选）或 **BYO-key**（客户自有密钥直连，数据不经本方）；provider 无关抽象。**路由失败 / 密钥失效兜底**：长流程中云 / BYO 调用失败时，状态机暂存并回退本地模型或挂起待人工，不丢流程（与 1.7 对接）。
+- **供应商适配层（多供应商）**：单一 `ModelProvider` 接口，每个后端一个适配器。**先落地 OpenAI 适配器**（已有账户 → 作为内部试点 / 开发的默认激活供应商）；将 **Anthropic Claude** 与 **DeepSeek** 适配器按同一接口构建，置于 config + BYO-key 之后，提供密钥即可启用（不改代码）。供应商选择与密钥属部署 / 客户配置；本地模型路径仍为商用默认。路由器（见上）在已配置的供应商间选择。
 - **脱敏管线**：出站前 PII 检测 + 遮蔽 / 假名化 + 本地记录脱敏前后映射（APP 8 前置条件，非口号）。
 - **prompt 版本管理**：每个 prompt 版本化，变更可回归。
 - **离线 eval harness**：黄金集 + LLM-as-judge + 回归；**公平 eval 脚手架**与质量 eval 同级（受保护群体通过率比、adverse-impact ratio 作非约束性诊断）。
@@ -567,6 +568,8 @@ golden_case := {
 
 **交付物（Deliverables）**：
 - [ ] `ai/router`：模型路由器 + provider 无关抽象 + 兜底回退。
+- [ ] `ai/providers`：`ModelProvider` 接口 + OpenAI 适配器（可交付）+ 按接口对齐构建的 Anthropic Claude 与 DeepSeek 适配器（密钥门控）+ 供应商选择 / BYO-key 配置。
+- [ ] `ai/providers/conformance`：供应商一致性测试，同一任务在任一已配置供应商上通过。
 - [ ] `ai/deid`：脱敏管线 + 前后映射本地记录。
 - [ ] `ai/prompts`：prompt 版本库。
 - [ ] `eval/harness`：离线 eval（质量 + 公平脚手架）。
@@ -579,6 +582,7 @@ golden_case := {
 - 同一任务能在"本地模型 / 可选云 / BYO-key"间路由切换；云 / BYO 调用失败时回退本地或挂起，流程不丢。
 - 出站调用前 PII 被检测 + 脱敏，前后映射本地可查。
 - CI 含 eval 门禁（质量 + 公平 smoke 各至少一条）。
+- 激活的模型供应商可经 config + 密钥在 **OpenAI / Claude / DeepSeek / 本地** 间切换且**不改代码**；OpenAI 端到端可用；提供密钥时 Claude 与 DeepSeek 通过供应商一致性测试。
 
 ---
 
