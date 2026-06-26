@@ -74,6 +74,9 @@ body { margin: 0; font-family: var(--font); color: var(--text); background: var(
 .table-wrap { overflow-x: auto; margin: 16px 0; }
 .content table { border-collapse: collapse; width: 100%; font-size: 14px; }
 .content th, .content td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+.content th { white-space: nowrap; }
+.content td { overflow-wrap: break-word; }
+.content td code { overflow-wrap: anywhere; }
 .content thead th { background: var(--bg-alt); }
 .content tbody tr:nth-child(even) { background: #fbfcfd; }
 
