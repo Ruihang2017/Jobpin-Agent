@@ -12,8 +12,7 @@ export async function renderDocument(path, contentEl, tocEl) {
     md = await res.text();
   } catch (err) {
     contentEl.innerHTML =
-      '<div class="status error">Couldn't load this document (' + err.message +
-      '). <button id="retry-btn" class="link">Retry</button></div>';
+      `<div class="status error">Couldn't load this document (${err.message}). <button id="retry-btn" class="link">Retry</button></div>`;
     tocEl.innerHTML = '';
     return { retry: true };
   }

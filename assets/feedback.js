@@ -26,7 +26,7 @@ export function initFeedback(form, getContext) {
       form.innerHTML = '<p class="thanks">Thanks — your feedback was sent. 🙏</p>';
     } catch (err) {
       if (status) {
-        status.textContent = 'Sorry, that didn't send (' + err.message + '). Please try again.';
+        status.textContent = `Sorry, that didn't send (${err.message}). Please try again.`;
         status.className = 'form-status error';
       }
     }
