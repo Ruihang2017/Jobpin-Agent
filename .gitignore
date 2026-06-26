@@ -5,3 +5,13 @@
 .DS_Store
 Thumbs.db
 *.swp
+
+# Python (agent/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/

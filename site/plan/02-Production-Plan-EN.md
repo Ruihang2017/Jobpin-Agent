@@ -547,6 +547,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **Scope**:
 - **Model router**: dynamically selects, by task difficulty / privacy level / hardware capability, a local model (Ollama/llama.cpp running Llama/Qwen/Mistral) or a cloud model (optional) or **BYO-key** (the customer's own key connects directly, with data not passing through us); a provider-agnostic abstraction. **Routing-failure / key-invalid fallback**: when a cloud / BYO call fails during a long-running process, the state machine stashes and falls back to the local model or suspends to await a human, without losing the process (interfacing with 1.7).
+- **Provider adapter layer (multi-provider)**: a single `ModelProvider` interface with one adapter per backend. **Ship the OpenAI adapter first** (an account exists → it is the default active provider for the internal pilot / dev); build the **Anthropic Claude** and **DeepSeek** adapters to the same interface behind config + BYO-key, enabled by supplying a key (no code change). Provider selection and key are deployment / customer config; the local-model path remains the commercial default. The router (above) selects across whichever providers are configured.
 - **De-identification pipeline**: PII detection + masking / pseudonymisation before outbound + a local record of the before/after de-identification mapping (a precondition of APP 8, not a slogan).
 - **Prompt version management**: each prompt is versioned, and changes can be regressed.
 - **Offline eval harness**: golden set + LLM-as-judge + regression; the **fairness-eval scaffold** is on par with quality eval (protected-group pass-rate ratio, adverse-impact ratio as a non-binding diagnostic).
@@ -567,6 +568,8 @@ golden_case := {
 
 **Deliverables**:
 - [ ] `ai/router`: the model router + a provider-agnostic abstraction + fallback.
+- [ ] `ai/providers`: the `ModelProvider` interface + an OpenAI adapter (shippable) + Anthropic Claude and DeepSeek adapters built to interface parity (key-gated) + provider-selection / BYO-key config.
+- [ ] `ai/providers/conformance`: a provider-conformance test that the same task passes against any configured provider.
 - [ ] `ai/deid`: the de-identification pipeline + a local record of the before/after mapping.
 - [ ] `ai/prompts`: the prompt version store.
 - [ ] `eval/harness`: offline eval (quality + fairness scaffold).
@@ -579,6 +582,7 @@ golden_case := {
 - The same task can route between "local model / optional cloud / BYO-key"; on a cloud / BYO call failure it falls back to local or suspends, without losing the process.
 - Before an outbound call, PII is detected + de-identified, with the before/after mapping queryable locally.
 - CI includes an eval gate (at least one each of quality + fairness smoke).
+- The active model provider can be switched among **OpenAI / Claude / DeepSeek / local** via config + key with **no code change**; OpenAI works end-to-end; Claude and DeepSeek pass the provider-conformance test when a key is supplied.
 
 ---
 

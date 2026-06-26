@@ -1,37 +1,51 @@
-# Jobpin Agent — PRD Review Site
+# Jobpin Agent
 
-A zero-build static site that renders the Jobpin Agent PRD and Production Plan
-(English + 中文) and collects reviewer feedback via Netlify Forms. The site reads
-the markdown in `plan/` directly — there is no build step and no duplicate copies.
+Monorepo for **Jobpin Agent** — a local-first, AI-agent HR platform — plus the
+public docs site that presents its PRD and Production Plan.
 
-## Run locally
+## Layout
 
-The page fetches markdown over HTTP, so it needs a static server (not `file://`):
+| Path | What it is | Deployed? |
+|---|---|---|
+| `site/` | Zero-build static docs viewer (PRD + Production Plan) | ✅ Netlify publishes **only** this |
+| `site/plan/` | Canonical PRD + Production Plan markdown (served by the viewer) | ✅ (inside `site/`) |
+| `agent/` | The actual product source (Python) | ❌ never published |
+| `reference/hermes/` | Hermes Agent source (MIT), pinned submodule, **porting reference only** | ❌ never published |
+| `docs/superpowers/` | Internal specs & implementation plans | ❌ never published |
+
+## Docs site
+
+Static, no build. Netlify (`netlify.toml`) serves `site/` as the web root. Run
+locally over HTTP — the viewer fetches markdown, which needs HTTP not `file://`:
 
 ```bash
-python -m http.server 8080
-# then open http://localhost:8080
+python -m http.server 8123 --directory site
+# open http://localhost:8123/
 ```
 
-Note: the feedback form only truly submits on the deployed Netlify site (it posts
-to Netlify's form backend). Locally you can see it render and validate.
-
-## Deploy to Netlify
-
-- **Git:** push this repo, then Netlify → "Add new site → Import from Git" → pick the
-  repo. Build command: none. Publish directory: `.` (already set in `netlify.toml`).
-- **Drag & drop:** drag the project folder into the Netlify dashboard.
-
-After the first deploy:
-1. Netlify → site → **Forms** → confirm a form named `feedback` is listed.
-2. Forms → notifications → add an email notification to receive reviewer comments.
-3. Share the URL (it's marked `noindex`; treat it as unlisted).
-
-## Update content
-
-Edit the markdown in `plan/` and redeploy. No build, no copies.
+Edit the markdown in `site/plan/` and redeploy. No build, no duplicate copies.
 
 | Document | English | 中文 |
 |---|---|---|
-| PRD | `plan/01-PRD-EN.md` | `plan/01-PRD.md` |
-| Production Plan | `plan/02-Production-Plan-EN.md` | `plan/02-Production-Plan.md` |
+| PRD | `site/plan/01-PRD-EN.md` | `site/plan/01-PRD.md` |
+| Production Plan | `site/plan/02-Production-Plan-EN.md` | `site/plan/02-Production-Plan.md` |
+
+The feedback form only truly submits on the deployed Netlify site (it posts to
+Netlify Forms); locally you can see it render and validate. The site is marked
+`noindex` — treat the URL as unlisted.
+
+## Product (agent/)
+
+```bash
+cd agent
+python -m pytest
+```
+
+See `agent/README.md`. Hermes is ported **into** `agent/`, never depended on at
+runtime; ported files keep their MIT notice in `agent/THIRD_PARTY_NOTICES.md`.
+
+## Working with the Hermes submodule
+
+```bash
+git submodule update --init --recursive   # populate reference/hermes/
+```

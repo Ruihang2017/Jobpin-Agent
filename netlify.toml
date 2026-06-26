@@ -1,6 +1,6 @@
-# Zero-build static site. Netlify serves the repo root as-is.
+# Zero-build static site. Netlify serves the site/ folder as-is.
 [build]
-  publish = "."
+  publish = "site"
   command = ""
 
 # Keep the unlisted review site out of search indexes.
