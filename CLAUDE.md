@@ -191,7 +191,30 @@ behavior (user instructions > skills > system default).
 
 ---
 
-## 6. Product decisions & constraints to respect
+## 6. Documentation currency (keep docs in sync — required)
+
+Docs are part of a change, not an afterthought. In the **same commit/PR** as the change that makes
+them stale:
+
+- **READMEs** — update `README.md` (root, the monorepo map) and/or `agent/README.md` (product dev
+  quickstart) whenever structure, commands, layout, or the deploy boundary change.
+- **PRD + Production Plan** (`site/plan/01-PRD*.md`, `02-Production-Plan*.md`) — update whenever
+  product scope, architecture, a recorded decision, or an acceptance measure changes. **Always edit
+  EN and 中文 together** (`*-EN.md` and the matching Chinese file) so they stay in lockstep.
+- **`agent/THIRD_PARTY_NOTICES.md`** — update whenever a file is ported from Hermes (Tenet 1 of
+  `TEXTBOOK_SPEC.md`).
+- **This file** — reflect finished work in §4 (handover) / §7 (status), and the PRD §0 status if the
+  project phase changed.
+
+Rule of thumb: if a reader following the docs would be misled after your change, the docs are part
+of the change — a PR that alters behaviour/structure without the matching doc update is incomplete.
+
+> Optional hard enforcement: a Stop hook can remind to check doc currency before finishing — ask to
+> have it wired into `settings.json` if you want it enforced rather than conventional.
+
+---
+
+## 7. Product decisions & constraints to respect
 
 - **Local-first by default** (commercial product): agent runtime, memory, and HR data run/stored on
   the customer's premises; PII does not leave by default. Outbound calls are optional, disableable,
@@ -212,7 +235,7 @@ behavior (user instructions > skills > system default).
 
 ---
 
-## 7. Current status & next steps
+## 8. Current status & next steps
 
 **Status:** restructure + provider-doc updates complete on `chore/wrap-docs-site`; **nothing merged
 to `main`; production untouched.** `agent/` is an empty skeleton.
