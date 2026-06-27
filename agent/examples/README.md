@@ -1,14 +1,21 @@
 # `agent/examples/` — runnable examples
 
 ## English
-Self-contained scripts that demonstrate the core end-to-end. They default to the
-offline `FakeProvider`, so they run deterministically with no API key.
+Scripts that demonstrate the core end-to-end.
 
-- `demo_turn.py` — runs a plain turn, a tool-call turn, and a delegation, and
-  prints a result summary. Run: `python agent/examples/demo_turn.py`.
+- `demo_turn.py` — **offline** smoke demo. Uses the scripted `FakeProvider` (no key,
+  no network), so it always prints the same canned result. Run:
+  `python agent/examples/demo_turn.py`.
+- `chat.py` — **real** interactive chat. Uses your OpenAI key (from `agent/.env`)
+  and `OpenAIProvider`; type messages and get real replies, with a per-turn step
+  trace and the `echo` tool. Run: `python agent/examples/chat.py` (commands:
+  `/exit`, `/trace`, `/reset`).
 
 ## 中文
-演示内核端到端的自包含脚本。默认使用离线 `FakeProvider`，无需 API 密钥即可确定性运行。
+演示内核端到端的脚本。
 
-- `demo_turn.py` — 运行一个纯文本回合、一个工具调用回合与一次委派，并打印结果摘要。运行：
+- `demo_turn.py` — **离线**冒烟演示。使用脚本化 `FakeProvider`（无密钥、无网络），故始终打印相同的预设结果。运行：
   `python agent/examples/demo_turn.py`。
+- `chat.py` — **真实**交互式聊天。使用你的 OpenAI 密钥（来自 `agent/.env`）与 `OpenAIProvider`；输入消息即可获得
+  真实答复，含每回合步骤追踪与 `echo` 工具。运行：`python agent/examples/chat.py`（命令：`/exit`、`/trace`、
+  `/reset`）。

@@ -20,9 +20,12 @@ To run against a real model, copy the env template and add your OpenAI key
 
 ```bash
 cp .env.example .env    # then edit .env: OPENAI_API_KEY=sk-...
+python examples/chat.py # interactive chat with a real model (your key)
 ```
 
-`CoreConfig.from_env()` loads `agent/.env` automatically. Internal structure
+`CoreConfig.from_env()` loads `agent/.env` automatically. (`examples/demo_turn.py`
+is the **offline** smoke demo and ignores the key by design; `examples/chat.py` is
+the **real** one.) Internal structure
 (Agent Core, Memory Subsystem, sub-agents, orchestration) is built in Phase 0 of
 the Production Plan and intentionally not scaffolded yet.
 
