@@ -552,6 +552,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 - **prompt 版本管理**：每个 prompt 版本化，变更可回归。
 - **离线 eval harness**：黄金集 + LLM-as-judge + 回归；**公平 eval 脚手架**与质量 eval 同级（受保护群体通过率比、adverse-impact ratio 作非约束性诊断）。
 - **步骤级追踪**：Agent 步骤（工具调用 / 子代理 / 记忆读写）级追踪（Langfuse / OTel，优先可本地部署）。
+- **流式输出（模型层）**：`ModelProvider` 暴露增量 token 流式路径（deltas），使答复逐步呈现而非一次性给出——这正是生成 **首字节时间**（time-to-first-byte，PRD 第 12 节，于 §3.3 度量）有意义的前提。流式 deltas 在展示前经 §1.6 的 `StreamingContextScrubber` 清洗。（§1.1 内核提供非流式 `complete()`；流式路径在本工作流新增。）
 
 **eval 黄金集条目格式草图（接口待定，本阶段定义）**：
 
@@ -577,6 +578,7 @@ golden_case := {
 
 **实现要点（How）**：
 - **兜底是流程级而非调用级**：云 / BYO 失败时不仅重试，而是让 1.7 状态机 `suspended` 暂存 + 回退本地模型 / 挂起待人工，保证长流程不丢；出站前 PII 遮蔽 / 假名化，映射本地可查（满足 APP 8 + 可追溯），不外泄映射本身。
+- **实时内部步骤 UX（Claude Code 风格）属体验层、由步骤级追踪驱动**：上述步骤事件可作为实时进度视图流式呈现给用户（模型调用 / 工具调用 / 子代理委派 实时显示）。渲染器本身属体验层（PRD 第 7 节），非本后端工作流。注意：Hermes 自带的丰富 CLI/TUI 流式展示（如 `agent/display.py`、`gateway/stream_*`）已被刻意**不移植**（PRD 第 2.7 节，"CLI/TUI……按需自建"）——Jobpin Agent 为其多角色本地应用形态自建体验层——故此 UX 基于追踪事件全新构建，而非继承。
 
 **退出标准（Exit）**：
 - 同一任务能在"本地模型 / 可选云 / BYO-key"间路由切换；云 / BYO 调用失败时回退本地或挂起，流程不丢。

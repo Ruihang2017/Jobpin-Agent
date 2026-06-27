@@ -552,6 +552,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 - **Prompt version management**: each prompt is versioned, and changes can be regressed.
 - **Offline eval harness**: golden set + LLM-as-judge + regression; the **fairness-eval scaffold** is on par with quality eval (protected-group pass-rate ratio, adverse-impact ratio as a non-binding diagnostic).
 - **Step-level tracing**: tracing at the level of agent steps (tool calls / subagents / memory reads and writes) (Langfuse / OTel, preferring locally deployable).
+- **Streaming output (model layer)**: the `ModelProvider` exposes an incremental token-streaming path (deltas) so an answer renders progressively instead of arriving all-at-once — this is what makes the generation **time-to-first-byte** NFR (PRD §12, measured in §3.3) meaningful. Streamed deltas pass through §1.6's `StreamingContextScrubber` before display. (§1.1's core ships a non-streaming `complete()`; the streaming path is added in this workstream.)
 
 **Sketch of an eval golden-set entry format (interface TBD — to be defined in this phase)**:
 
@@ -577,6 +578,7 @@ golden_case := {
 
 **Implementation Notes (How)**:
 - **Fallback is process-level, not call-level**: on a cloud / BYO failure, do not merely retry but have the 1.7 state machine `suspended`-stash + fall back to the local model / suspend to await a human, guaranteeing the long-running process is not lost; PII is masked / pseudonymised before outbound, with the mapping queryable locally (satisfying APP 8 + traceability), without leaking the mapping itself.
+- **Live inner-step UX (Claude-Code-style) is an experience-layer concern, fed by step-level tracing**: the step events above can be streamed to the user as a live progress view (model calls / tool calls / sub-agent delegation shown as they happen). The renderer itself belongs to the experience layer (PRD §7), not this backend workstream. Note: Hermes's own rich CLI/TUI streaming display (e.g. `agent/display.py`, `gateway/stream_*`) was deliberately **not ported** (PRD §2.7, "CLI/TUI … build as needed") — Jobpin Agent builds its own experience layer for its multi-role local-app form — so this UX is built fresh on top of the trace events, not inherited.
 
 **Exit Criteria**:
 - The same task can route between "local model / optional cloud / BYO-key"; on a cloud / BYO call failure it falls back to local or suspends, without losing the process.
