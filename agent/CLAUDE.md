@@ -124,3 +124,19 @@ When you change `agent/`, update **in the same change**: `agent/README.md` (if c
 changed) and `agent/THIRD_PARTY_NOTICES.md` (whenever you port a file). If a change alters product
 scope or a recorded decision, also update the PRD + Production Plan (both EN and 中文) per the
 contract in `../CLAUDE.md`. See root `../CLAUDE.md` for the full documentation-currency rule.
+
+### Bilingual docstrings (required here)
+
+Every Python file, class, and function under `agent/` — **including tests and `__init__.py`** —
+carries a **comprehensive docstring in English then 中文**, with `Args:`/`Returns:` (plus `Raises:`
+and a short learning note where useful). The code is a study reference, so explain the *why*, not
+just the *what*. Format: English block → blank line → parallel 中文 block. Canonical example:
+`src/jobpin_agent/core/system_prompt.py`. Keep both languages in sync when a signature/behaviour
+changes; never let a docstring contain `"""`.
+
+### Per-folder `README.md`
+
+Every folder under `agent/` (src, jobpin_agent, core, model, tests, tests/data, examples) has a
+bilingual `README.md` (English section, then 中文 section) describing each file and subfolder. Update
+it whenever files are added/renamed/removed. This is the repo-wide convention (see root `../CLAUDE.md`
+§6).

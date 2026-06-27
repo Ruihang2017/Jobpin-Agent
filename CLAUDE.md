@@ -247,6 +247,17 @@ them stale:
   (`p<phase>-<point>-<slug>-EN.md` + the Chinese base name `p<phase>-<point>-<slug>.md`), so the repo
   doubles as a study reference. These live under `site/` (served docs); wiring them into the viewer's
   navigation is an optional follow-up.
+- **Bilingual docstrings (`agent/`)** — every Python file, class, and function under `agent/`
+  (including tests and `__init__.py`) carries a **comprehensive docstring, English then 中文**, with
+  `Args:`/`Returns:` (and `Raises:`/learning note where useful). The code is a study reference; keep
+  both languages in sync whenever a signature or behaviour changes. Format: an English block, a blank
+  line, then a parallel 中文 block (see `agent/src/jobpin_agent/core/system_prompt.py` for the canonical
+  shape). Never let a docstring contain `"""`.
+- **Per-folder guide (`README.md`)** — every meaningful folder repo-wide has a bilingual `README.md`
+  (English section, then 中文 section) listing what each file and subfolder does. Update it when you
+  add/rename/remove files in that folder. Excludes the `reference/hermes` submodule internals and
+  `site/assets/vendor/` (third-party). Folders that already have a README (root, `agent/`) carry the
+  manifest as a **Contents / 目录** section inside their existing README.
 
 Rule of thumb: if a reader following the docs would be misled after your change, the docs are part
 of the change — a PR that alters behaviour/structure without the matching doc update is incomplete.

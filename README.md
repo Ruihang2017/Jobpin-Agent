@@ -49,3 +49,21 @@ runtime; ported files keep their MIT notice in `agent/THIRD_PARTY_NOTICES.md`.
 ```bash
 git submodule update --init --recursive   # populate reference/hermes/
 ```
+
+## Contents / 目录
+
+**English** — top-level folders (each has its own bilingual `README.md`):
+- `site/` — the published zero-build docs site (PRD + Plan viewer, devlog).
+- `agent/` — the Python product source (Agent Core today; grows by Production-Plan point).
+- `reference/` — read-only porting references (the pinned Hermes submodule).
+- `docs/` — internal specs & implementation plans (not published).
+- `CLAUDE.md` / `TEXTBOOK_SPEC.md` — how development proceeds + the quality yardstick.
+- `netlify.toml` — Netlify config (`publish = "site"`).
+
+**中文** — 顶层文件夹（每个都有自己的双语 `README.md`）：
+- `site/` — 已发布的零构建文档站点（PRD + 计划查看器、devlog）。
+- `agent/` — Python 产品源码（当前为 Agent 内核；按生产计划节点增长）。
+- `reference/` — 只读移植参考（固定版本的 Hermes 子模块）。
+- `docs/` — 内部规格与实现计划（不发布）。
+- `CLAUDE.md` / `TEXTBOOK_SPEC.md` — 开发方式 + 质量标尺。
+- `netlify.toml` — Netlify 配置（`publish = "site"`）。
