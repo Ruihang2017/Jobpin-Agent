@@ -201,3 +201,56 @@ def test_lock_path_executes_on_this_platform(tmp_path):
     s = _store(tmp_path)
     assert s.add("org", "a")["success"] and s.add("org", "b")["success"]
     assert load_org_recruiter_store(tmp_path)._entries["org"] == ["a", "b"]
+
+
+def test_recruiter_target_add_budget_and_header(tmp_path):
+    """The recruiter target works end-to-end with its own budget + header.
+
+    EN: add under recruiter; snapshot shows RECRUITER PROFILE; over-budget rejected.
+    中文：在 recruiter 下 add；快照显示 RECRUITER PROFILE；超预算被拒。
+    """
+    s = _store(tmp_path)  # recruiter limit 120
+    assert s.add("recruiter", "Prefers concise summaries.")["success"] is True
+    reloaded = MemoryStore(tmp_path, org_char_limit=200, recruiter_char_limit=120)
+    reloaded.load_from_disk()
+    assert "RECRUITER PROFILE" in reloaded.format_for_system_prompt("recruiter")
+    assert s.add("recruiter", "z" * 200)["success"] is False  # over the 120 budget
+
+
+def test_live_snapshot_stable_across_midsession_write(tmp_path):
+    """A mid-session add does NOT change the FROZEN snapshot (Key Invariant #1).
+
+    EN: snapshot before == snapshot after an add (frozen at load time).
+    中文：add 前后快照一致（加载时冻结）。
+    """
+    (tmp_path / "ORG.md").write_text("seed entry", encoding="utf-8")
+    s = _store(tmp_path)
+    before = s.format_for_system_prompt("org")
+    s.add("org", "added mid session")
+    assert s.format_for_system_prompt("org") == before
+
+
+def test_drift_roundtrip_mismatch_signal_one(tmp_path):
+    """Drift signal #1: a file that doesn't round-trip (empty middle entry) is caught.
+
+    EN: "a §§ b" parses to [a, b] which re-serialises differently -> drift -> .bak + reject.
+    中文：含空中间条目的文件无法往返 -> 漂移 -> .bak + 拒写。
+    """
+    s = _store(tmp_path)
+    s.add("org", "anchor")
+    (tmp_path / "ORG.md").write_text("a" + ENTRY_DELIMITER + ENTRY_DELIMITER + "b", encoding="utf-8")
+    r = s.remove("org", "a")
+    assert r["success"] is False and "drift_backup" in r
+
+
+def test_apply_batch_write_gate_holds_per_op(tmp_path):
+    """The write gate fires per add/replace op inside a batch (for §1.5 consent).
+
+    EN: a gate that holds any op -> batch staged, nothing written.
+    中文：门控保留任一操作 -> 批量暂存，不写入。
+    """
+    s = MemoryStore(tmp_path, write_gate=lambda action, target, content: f"hold:{action}")
+    s.load_from_disk()
+    r = s.apply_batch("org", [{"action": "add", "content": "x"}])
+    assert r["success"] is False and r.get("staged") is True
+    assert load_org_recruiter_store(tmp_path)._entries["org"] == []

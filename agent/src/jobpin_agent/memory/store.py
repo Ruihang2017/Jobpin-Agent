@@ -472,9 +472,16 @@ class MemoryStore:
                 desc = self._scan(new_content)
                 if desc:
                     return {"success": False, "error": f"Operation {i + 1}: blocked by scan: {desc}"}
-        held = self._gate("apply_batch", target, None)
-        if held:
-            return {"success": False, "staged": True, "message": held}
+        # Per-op write gate (mirrors the per-op scan above): §1.5's consent gate must
+        # see each entry's content, so the gate fires once per add/replace op — not once
+        # per batch — otherwise consent is unenforceable on the batch write path.
+        for i, op in enumerate(operations):
+            act = (op or {}).get("action")
+            new_content = (op or {}).get("content")
+            if act in {"add", "replace"} and new_content:
+                held = self._gate(act, target, new_content)
+                if held:
+                    return {"success": False, "staged": True, "message": f"Operation {i + 1}: {held}"}
         with self._file_lock(self._path_for(target)):
             bak = self._reload_target(target)
             if bak:
