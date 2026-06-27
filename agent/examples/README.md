@@ -7,9 +7,11 @@ Scripts that demonstrate the core end-to-end.
   no network), so it always prints the same canned result. Run:
   `python agent/examples/demo_turn.py`.
 - `chat.py` — **real** interactive chat. Uses your OpenAI key (from `agent/.env`)
-  and `OpenAIProvider`; type messages and get real replies, with a per-turn step
-  trace and the `echo` tool. Run: `python agent/examples/chat.py` (commands:
-  `/exit`, `/trace`, `/reset`).
+  and `OpenAIProvider`; type messages and get real replies, with the `echo` tool.
+  Each turn prints a step + token summary and writes a full JSONL trace to
+  `agent/traces/latest.jsonl`; `/trace` dumps every step's prompt/response/tool
+  IO/latency/tokens. Run: `python agent/examples/chat.py` (commands: `/exit`,
+  `/trace`, `/reset`).
 
 ## 中文
 演示内核端到端的脚本。
