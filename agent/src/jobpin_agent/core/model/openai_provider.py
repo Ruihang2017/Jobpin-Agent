@@ -88,31 +88,60 @@ def to_openai_tools(tools: list[ToolSpec] | None) -> list[dict] | None:
     ]
 
 
+def _usage_dict(resp: Any) -> dict | None:
+    """Extract a token-usage dict from an OpenAI completion, if present.
+
+    EN —
+    Args:
+        resp: An OpenAI completion (or fake). Reads its ``usage`` attribute.
+    Returns:
+        ``{"prompt_tokens", "completion_tokens", "total_tokens"}`` or ``None`` when
+        the response carries no usage info.
+
+    中文 —
+    参数：
+        resp：OpenAI completion（或伪对象）。读取其 ``usage`` 属性。
+    返回：
+        ``{"prompt_tokens", "completion_tokens", "total_tokens"}``；当响应不含用量信息时为 ``None``。
+    """
+    usage = getattr(resp, "usage", None)
+    if usage is None:
+        return None
+    return {
+        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+        "completion_tokens": getattr(usage, "completion_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+    }
+
+
 def parse_response(resp: Any) -> ModelResponse:
     """Convert an OpenAI completion object into a ``ModelResponse``.
 
     EN —
     Reads the first choice: if it has ``tool_calls``, returns those (parsing each
-    function's JSON arguments back into a dict); otherwise returns the text.
+    function's JSON arguments back into a dict); otherwise returns the text. Token
+    usage is attached when the response reports it.
     Args:
         resp: An OpenAI completion (or any object with the same shape — tests pass
             lightweight fakes).
     Returns:
-        A ``ModelResponse`` (text or tool calls).
+        A ``ModelResponse`` (text or tool calls), with ``usage`` populated if available.
 
     中文 —
     读取第一个 choice：若含 ``tool_calls`` 则返回之（将每个 function 的 JSON 参数解析回 dict）；否则返回文本。
+    若响应报告了 token 用量则一并附上。
     参数：
         resp：OpenAI completion（或任何同形态对象——测试传入轻量伪对象）。
     返回：
-        一个 ``ModelResponse``（文本或工具调用）。
+        一个 ``ModelResponse``（文本或工具调用），若可用则填充 ``usage``。
     """
     msg = resp.choices[0].message
+    usage = _usage_dict(resp)
     tool_calls = getattr(msg, "tool_calls", None)
     if tool_calls:
         calls = [ToolCall(tc.id, tc.function.name, json.loads(tc.function.arguments or "{}")) for tc in tool_calls]
-        return ModelResponse(tool_calls=calls)
-    return ModelResponse(text=msg.content or "")
+        return ModelResponse(tool_calls=calls, usage=usage)
+    return ModelResponse(text=msg.content or "", usage=usage)
 
 
 class OpenAIProvider(ModelProvider):

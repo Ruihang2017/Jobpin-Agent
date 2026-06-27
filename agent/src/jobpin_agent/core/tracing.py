@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -117,3 +118,26 @@ class Tracer:
         return "\n".join(
             json.dumps({"seq": e.seq, "kind": e.kind, "data": e.data, "at": e.at}) for e in self._events
         )
+
+    def save(self, path: "str | Path") -> Path:
+        """Write the full trace to a JSONL file (creating parent directories).
+
+        EN —
+        Use this to inspect a run after the fact — each line is one step with its
+        full payload (prompt, response, tool IO, latency, token usage).
+        Args:
+            path: Destination file path.
+        Returns:
+            The resolved ``Path`` written to.
+
+        中文 —
+        用于事后检视一次运行——每行是一个步骤及其完整负载（提示、响应、工具 IO、延迟、token 用量）。
+        参数：
+            path：目标文件路径。
+        返回：
+            已写入的解析后的 ``Path``。
+        """
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(self.to_jsonl() + "\n", encoding="utf-8")
+        return p

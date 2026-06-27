@@ -9,6 +9,9 @@ Thumbs.db
 # Local secrets — never commit real keys (.env.example is the tracked template)
 .env
 
+# Local run traces
+agent/traces/
+
 # Python (agent/)
 __pycache__/
 *.py[cod]

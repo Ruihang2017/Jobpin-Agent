@@ -87,6 +87,23 @@ def test_stop_condition_on_max_iterations():
     assert sum(1 for e in tracer.events if e.kind == "tool_call") == 2
 
 
+def test_model_call_and_tool_call_events_capture_full_detail():
+    """Trace events carry the request, response, latency, and tool IO.
+
+    EN: model_call has request/response/latency_ms; tool_call has arguments + result.
+    中文：model_call 含 request/response/latency_ms；tool_call 含 arguments 与 result。
+    """
+    script = [ModelResponse(tool_calls=[ToolCall("c1", "echo", {"text": "X"})]), ModelResponse(text="ok")]
+    agent, store, tracer, sid = _agent(script)
+    agent.run_turn(sid, "use echo")
+    model_calls = [e for e in tracer.events if e.kind == "model_call"]
+    tool_calls = [e for e in tracer.events if e.kind == "tool_call"]
+    assert "request" in model_calls[0].data and "response" in model_calls[0].data
+    assert "latency_ms" in model_calls[0].data
+    assert tool_calls[0].data["arguments"] == {"text": "X"}
+    assert tool_calls[0].data["result"] == "X"
+
+
 def test_prefetch_recall_is_fenced_message_not_in_frozen_snapshot():
     """Per-turn recall is a fenced message, not part of the frozen snapshot.
 

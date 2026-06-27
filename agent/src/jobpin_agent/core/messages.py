@@ -138,6 +138,8 @@ class ModelResponse:
     Attributes:
         text: The model's text answer, or ``None`` when it called tools.
         tool_calls: Requested tool calls, or empty when it answered directly.
+        usage: Optional token-usage dict (prompt/completion/total) from the
+            provider; ``None`` for backends that don't report it (e.g. the fake).
 
     中文 —
     适配器从 ``ModelProvider.complete`` 返回此对象。每次响应只有一个分支有意义：要么模型作答
@@ -146,10 +148,13 @@ class ModelResponse:
     属性：
         text：模型的文本答复；当其调用工具时为 ``None``。
         tool_calls：请求的工具调用；当其直接作答时为空。
+        usage：来自提供商的可选 token 用量字典（prompt/completion/total）；不报告用量的后端为
+            ``None``（如伪 provider）。
     """
 
     text: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: dict | None = None
 
     @property
     def is_tool_call(self) -> bool:

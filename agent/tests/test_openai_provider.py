@@ -78,11 +78,21 @@ class _Choice:
         self.message = msg
 
 
-class _Resp:
-    """Fake OpenAI completion wrapping a single choice."""
+class _Usage:
+    """Fake OpenAI ``usage`` object (token counts)."""
 
-    def __init__(self, choice):
+    def __init__(self, prompt, completion, total):
+        self.prompt_tokens = prompt
+        self.completion_tokens = completion
+        self.total_tokens = total
+
+
+class _Resp:
+    """Fake OpenAI completion wrapping a single choice (+ optional usage)."""
+
+    def __init__(self, choice, usage=None):
         self.choices = [choice]
+        self.usage = usage
 
 
 def test_parse_response_text_and_tool_calls():
@@ -125,6 +135,17 @@ def test_complete_omits_tools_when_none_and_includes_when_present():
     assert "tools" not in sink[0]
     provider.complete([Message(Role.USER, "hi")], tools=[echo_tool()])
     assert sink[1]["tools"][0]["function"]["name"] == "echo"
+
+
+def test_parse_response_captures_usage_when_present():
+    """``parse_response`` attaches token usage when the response reports it.
+
+    EN: With a usage object → a dict of prompt/completion/total; without → None.
+    中文：有 usage 对象 → prompt/completion/total 字典；没有 → None。
+    """
+    out = parse_response(_Resp(_Choice(_Msg(content="hi")), usage=_Usage(3, 5, 8)))
+    assert out.usage == {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8}
+    assert parse_response(_Resp(_Choice(_Msg(content="hi")))).usage is None
 
 
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="no OPENAI_API_KEY; opt-in integration test")

@@ -20,15 +20,62 @@ rewritten lean (PRD §2.7).
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from .hooks import MemoryHooks, NoOpHooks
-from .messages import Message, Role
+from .messages import Message, ModelResponse, Role
 from .model.provider import ModelProvider
 from .session_store import SessionStore
 from .system_prompt import SystemPromptParts, build_system_prompt
 from .tools import ToolRegistry
 from .tracing import Tracer
+
+
+def _summarize_message(message: Message) -> dict:
+    """Render a message as a compact, JSON-safe dict for tracing.
+
+    EN —
+    Args:
+        message: The message to summarise.
+    Returns:
+        A dict with ``role`` and only the populated fields (``content`` /
+        ``tool_calls`` / ``tool_result``), suitable for a trace payload.
+
+    中文 —
+    参数：
+        message：要概述的消息。
+    返回：
+        含 ``role`` 及仅有内容的字段（``content`` / ``tool_calls`` / ``tool_result``）的 dict，适合作追踪负载。
+    """
+    summary: dict = {"role": message.role.value}
+    if message.content:
+        summary["content"] = message.content
+    if message.tool_calls:
+        summary["tool_calls"] = [{"name": c.name, "arguments": c.arguments} for c in message.tool_calls]
+    if message.tool_result is not None:
+        summary["tool_result"] = message.tool_result.content
+    return summary
+
+
+def _summarize_response(response: ModelResponse) -> dict:
+    """Render a model response as a compact, JSON-safe dict for tracing.
+
+    EN —
+    Args:
+        response: The model response to summarise.
+    Returns:
+        ``{"tool_calls": [...]}`` for a tool-call response, else ``{"text": ...}``.
+
+    中文 —
+    参数：
+        response：要概述的模型响应。
+    返回：
+        工具调用响应为 ``{"tool_calls": [...]}``，否则为 ``{"text": ...}``。
+    """
+    if response.is_tool_call:
+        return {"tool_calls": [{"name": c.name, "arguments": c.arguments} for c in response.tool_calls]}
+    return {"text": response.text}
 
 
 @dataclass
@@ -171,27 +218,45 @@ class Agent:
         返回：
             含最终答复（或 ``stopped=True``）的 ``TurnResult``。
         """
-        self.tracer.event("turn_start", session_id=session_id)
+        self.tracer.event("turn_start", session_id=session_id, user_input=user_input)
         recall = self.hooks.prefetch(user_input, session_id)  # per-turn fenced recall (no-op in §1.1)
         self.store.append_message(session_id, Message(Role.USER, content=user_input))
         iterations = 0
         while True:
             history = self.store.get_messages(session_id)
-            self.tracer.event("model_call", iteration=iterations)
-            response = self.provider.complete(self._compose(history, recall), self.tools.specs())
+            sent = self._compose(history, recall)
+            started = time.monotonic()
+            response = self.provider.complete(sent, self.tools.specs())
+            latency_ms = round((time.monotonic() - started) * 1000, 2)
+            # Rich model_call event: the full messages sent, the response, tokens, latency.
+            self.tracer.event(
+                "model_call",
+                iteration=iterations,
+                request=[_summarize_message(m) for m in sent],
+                response=_summarize_response(response),
+                usage=response.usage,
+                latency_ms=latency_ms,
+            )
             if response.is_tool_call:
                 if iterations >= self.max_tool_iterations:
-                    self.tracer.event("turn_end", stopped=True)
+                    self.tracer.event("turn_end", stopped=True, text=None)
                     return TurnResult(text=None, stopped=True, messages=self.store.get_messages(session_id))
                 self.store.append_message(session_id, Message(Role.ASSISTANT, tool_calls=response.tool_calls))
                 for call in response.tool_calls:
-                    self.tracer.event("tool_call", name=call.name)
+                    started = time.monotonic()
                     result = self.tools.execute(call)
+                    self.tracer.event(
+                        "tool_call",
+                        name=call.name,
+                        arguments=call.arguments,
+                        result=result.content,
+                        latency_ms=round((time.monotonic() - started) * 1000, 2),
+                    )
                     self.store.append_message(session_id, Message(Role.TOOL, tool_result=result))
                 iterations += 1
                 continue
             self.store.append_message(session_id, Message(Role.ASSISTANT, content=response.text or ""))
             final = self.store.get_messages(session_id)
             self.hooks.after_turn(session_id, final)
-            self.tracer.event("turn_end", stopped=False)
+            self.tracer.event("turn_end", stopped=False, text=response.text)
             return TurnResult(text=response.text, stopped=False, messages=final)

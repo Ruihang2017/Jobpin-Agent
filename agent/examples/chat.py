@@ -23,6 +23,7 @@ start a fresh session.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -63,8 +64,9 @@ def main() -> None:
     agent = Agent(OpenAIProvider(config), registry, store, tracer=tracer)
     session_id = store.create_session("chat")
 
+    trace_path = Path(__file__).resolve().parents[1] / "traces" / "latest.jsonl"
     print(f"Chatting with model '{config.model_id}'. The 'echo' tool is available.")
-    print("Type a message. Commands: /exit, /trace, /reset.\n")
+    print("Type a message. Commands: /exit, /trace (full detail), /reset.\n")
     while True:
         try:
             user_input = input("you> ").strip()
@@ -76,7 +78,10 @@ def main() -> None:
         if user_input == "/exit":
             break
         if user_input == "/trace":
-            print("  all steps so far:", [e.kind for e in tracer.events])
+            # Full detail of every step so far: prompt sent, response, tool IO, tokens, latency.
+            for event in tracer.events:
+                print(json.dumps({"seq": event.seq, "kind": event.kind, "data": event.data},
+                                 ensure_ascii=False, indent=2))
             continue
         if user_input == "/reset":
             session_id = store.create_session()
@@ -85,10 +90,14 @@ def main() -> None:
 
         before = len(tracer.events)
         result = agent.run_turn(session_id, user_input)
-        steps = [e.kind for e in tracer.events[before:]]
+        turn_events = tracer.events[before:]
+        steps = [e.kind for e in turn_events]
+        tokens = sum((e.data.get("usage") or {}).get("total_tokens") or 0
+                     for e in turn_events if e.kind == "model_call")
         answer = result.text if not result.stopped else "[stopped: hit the tool-iteration limit]"
+        tracer.save(trace_path)  # full JSONL trace of the whole conversation so far
         print(f"agent> {answer}")
-        print(f"  (steps this turn: {steps})\n")
+        print(f"  (steps: {steps} | tokens: {tokens} | full trace -> {trace_path})\n")
 
 
 if __name__ == "__main__":  # pragma: no cover

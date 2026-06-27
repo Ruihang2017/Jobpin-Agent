@@ -35,3 +35,18 @@ def test_to_jsonl_is_one_line_per_event():
     t.event("turn_start")
     lines = t.to_jsonl().splitlines()
     assert len(lines) == 1 and json.loads(lines[0])["kind"] == "turn_start"
+
+
+def test_save_writes_jsonl_file_creating_parent_dirs(tmp_path):
+    """``save`` writes one JSON line per event, creating missing parent dirs.
+
+    EN: The returned path exists and has one parseable line per event.
+    中文：返回的路径存在，且每事件一行可解析 JSON。
+    """
+    t = Tracer()
+    t.event("model_call", iteration=0)
+    t.event("tool_call", name="echo")
+    out = t.save(tmp_path / "nested" / "trace.jsonl")
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
+    assert out.is_file() and len(lines) == 2
+    assert json.loads(lines[0])["kind"] == "model_call"
