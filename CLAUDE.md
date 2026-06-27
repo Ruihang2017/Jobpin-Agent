@@ -161,30 +161,44 @@ d3a2be7  docs: design spec for wrapping docs site + opening agent/ product home
 
 ---
 
-## 5. Workflow convention — automated superpowers flow (single-agent)
+## 5. Workflow convention — automated superpowers cycle (single-agent, one point at a time)
 
-**We use the Superpowers workflow as the main approach.** For feature/change work the order is:
-**brainstorming → spec → writing-plans → execution**, with specs in
-`docs/superpowers/specs/` and plans in `docs/superpowers/plans/`.
+**We use the Superpowers workflow as the main approach**, working **one small Production-Plan point
+per cycle** (the smallest workstream sub-item — e.g. §1.1 Agent Core; never bundle points). For each
+point the full cycle is:
 
-**Automation (sanctioned by the repo owner — overrides the skills' intermediate HITL gates):**
-Once the **user has approved the design** at the end of brainstorming, **proceed automatically and
-without pausing** through:
+> **brainstorm → spec → writing-plans → execute → test → triple-review → document**
 
-> write spec → **self-review spec** → write plan → **self-review plan** → **execute (single-agent,
-> inline)**
+with specs in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/`.
 
-Do **not** stop to ask the user to review the spec, and do **not** ask "which execution approach?"
-— default to **single-agent inline execution** (`superpowers:executing-plans`), not subagent
-fan-out, unless the user asks otherwise. The self-review steps still run (and are the quality gate);
-the spec and plan are still written and committed. We are **automating the wait-for-user gates the
-owner would not read anyway**, not skipping the steps.
+**Automation (sanctioned by the repo owner — overrides the skills' intermediate HITL gates):** once
+the **user has approved the design** for a point, **proceed automatically and without pausing**
+through: write spec → self-review spec → write plan → self-review plan → execute (single-agent,
+inline) → test → triple-review → document. Default to **single-agent inline execution**
+(`superpowers:executing-plans`), not subagent fan-out, for the *implementation*. The self-review
+steps still run; spec and plan are still written and committed. We automate the **wait-for-user
+review gates**, not the steps themselves.
 
-**Gates that are KEPT (still require the user):**
-- The **design / approach approval** in brainstorming (the creative decision the owner does review).
-- Anything **irreversible or outward-facing**: `git push`, merging to `main`, triggering a
-  **Netlify deploy**, deleting/overwriting files not created this session, sending data to external
-  services. Confirm these before acting.
+**Exceptions ALWAYS kept (still pause / require input):**
+- **Clarifying questions** — still ask them whenever a genuine ambiguity would change the work.
+  Automation removes the wait-for-review gates, **not** the right to ask. (Brainstorming always
+  involves clarifying questions before the design.)
+- **Design / approach approval** in brainstorming (the creative decision the owner reviews).
+- **Irreversible or outward-facing actions**: `git push`, merging to `main`, triggering a Netlify
+  deploy, deleting/overwriting files not created this session, sending data to external services.
+  Confirm before acting.
+
+**After implementing each point — test, then triple-review against the Production Plan:**
+1. **Test** the point against its acceptance measures (`TEXTBOOK_SPEC.md`).
+2. **Review from three independent perspectives** (e.g. three focused review subagents): **senior
+   engineer** (correctness, quality, test design), **architect** (boundaries, fit with the
+   Hermes-derived design and the §1.x dependency order), **product manager** (does it match PRD/Plan
+   intent + acceptance criteria). Each confirms the point is **in line with the Production Plan**.
+3. **If a review finds the Production Plan (or PRD) itself is wrong**, fix the doc **first** —
+   bilingually (EN + 中文, per §6), leaving the rationale — **then** implement against the corrected
+   plan. The Plan is the source of truth, but it is correctable; never quietly diverge from it.
+
+**Document every implemented point as a bilingual study reference** (see §6).
 
 This convention lives here because CLAUDE.md instructions take precedence over default skill
 behavior (user instructions > skills > system default).
@@ -203,8 +217,13 @@ them stale:
   EN and 中文 together** (`*-EN.md` and the matching Chinese file) so they stay in lockstep.
 - **`agent/THIRD_PARTY_NOTICES.md`** — update whenever a file is ported from Hermes (Tenet 1 of
   `TEXTBOOK_SPEC.md`).
-- **This file** — reflect finished work in §4 (handover) / §7 (status), and the PRD §0 status if the
+- **This file** — reflect finished work in §4 (handover) / §8 (status), and the PRD §0 status if the
   project phase changed.
+- **Per-point study reference (`site/devlog/`)** — every implemented Production-Plan point gets a
+  teaching write-up explaining **how it was implemented and why**, in **EN + 中文**
+  (`p<phase>-<point>-<slug>-EN.md` + the Chinese base name `p<phase>-<point>-<slug>.md`), so the repo
+  doubles as a study reference. These live under `site/` (served docs); wiring them into the viewer's
+  navigation is an optional follow-up.
 
 Rule of thumb: if a reader following the docs would be misled after your change, the docs are part
 of the change — a PR that alters behaviour/structure without the matching doc update is incomplete.
