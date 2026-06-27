@@ -17,17 +17,26 @@ class DelegationResult:
     child_session_id: str
 
 
-def delegate(parent: Agent, task: str, child_provider: ModelProvider, child_session_id: str | None = None) -> DelegationResult:
-    # Child shares the parent's tools + session DB, but runs skip_memory (NoOpHooks).
+def delegate(
+    parent: Agent,
+    task: str,
+    child_provider: ModelProvider,
+    child_session_id: str | None = None,
+    parent_session_id: str | None = None,
+) -> DelegationResult:
+    # Child shares the parent's tools + session DB + prompt context (org / compliance /
+    # role), but runs skip_memory (NoOpHooks). parent_session_id records lineage for
+    # the §1.7 / audit causal chain.
     child = Agent(
         provider=child_provider,
         tools=parent.tools,
         session_store=parent.store,
         tracer=parent.tracer,
         hooks=NoOpHooks(),  # skip_memory: child writes no sensitive memory
+        parts=parent.parts,
         max_tool_iterations=parent.max_tool_iterations,
     )
-    sid = parent.store.create_session(child_session_id, parent_id=None)
+    sid = parent.store.create_session(child_session_id, parent_id=parent_session_id)
     parent.tracer.event("delegation", task=task, child_session_id=sid)
     result = child.run_turn(sid, task)
     parent.hooks.on_delegation(task, result.text or "", sid)

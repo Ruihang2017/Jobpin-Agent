@@ -6,7 +6,7 @@ class RecordingHooks:
     def __init__(self):
         self.switches = []
 
-    def prefetch(self, q):
+    def prefetch(self, q, session_id):
         return ""
 
     def after_turn(self, s, m):
@@ -31,6 +31,7 @@ def test_roundtrip_preserves_messages_with_tool_calls():
     msgs = s.get_messages(sid)
     assert [m.role for m in msgs] == [Role.USER, Role.ASSISTANT, Role.TOOL]
     assert msgs[1].tool_calls[0].name == "echo"
+    assert msgs[1].tool_calls[0].arguments == {"text": "x"}
     assert msgs[2].tool_result.content == "x"
 
 

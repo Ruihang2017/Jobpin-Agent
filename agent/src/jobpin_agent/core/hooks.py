@@ -9,7 +9,7 @@ from .messages import Message
 
 @runtime_checkable
 class MemoryHooks(Protocol):
-    def prefetch(self, query: str) -> str: ...
+    def prefetch(self, query: str, session_id: str) -> str: ...
     def after_turn(self, session_id: str, messages: list[Message]) -> None: ...
     def on_delegation(self, task: str, result: str, child_session_id: str) -> None: ...
     def on_session_switch(self, new_session_id: str, parent_session_id: str | None, reset: bool, rewound: bool) -> None: ...
@@ -17,7 +17,7 @@ class MemoryHooks(Protocol):
 
 
 class NoOpHooks:
-    def prefetch(self, query: str) -> str:
+    def prefetch(self, query: str, session_id: str) -> str:
         return ""
 
     def after_turn(self, session_id: str, messages: list[Message]) -> None:

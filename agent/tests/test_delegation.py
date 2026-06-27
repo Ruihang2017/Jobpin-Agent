@@ -11,7 +11,7 @@ class RecordingHooks:
         self.delegations = []
         self.prefetched = []
 
-    def prefetch(self, q):
+    def prefetch(self, q, session_id):
         self.prefetched.append(q)
         return ""
 
@@ -34,7 +34,7 @@ def test_delegate_runs_child_skip_memory_and_parent_observes():
     parent = Agent(FakeProvider([ModelResponse(text="ignored")]), ToolRegistry(), store, hooks=h)
     store.create_session("parent")
     child_provider = FakeProvider([ModelResponse(text="child-done")])
-    res = delegate(parent, "do subtask", child_provider=child_provider, child_session_id="child")
+    res = delegate(parent, "do subtask", child_provider=child_provider, child_session_id="child", parent_session_id="parent")
     assert res.text == "child-done" and res.child_session_id == "child"
     # parent observed the delegation
     assert h.delegations == [("do subtask", "child-done", "child")]

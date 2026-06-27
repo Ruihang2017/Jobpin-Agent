@@ -50,3 +50,43 @@ def test_stop_condition_on_max_iterations():
     agent, store, tracer, sid = _agent(script, max_iters=2)
     r = agent.run_turn(sid, "loop")
     assert r.stopped is True and r.text is None
+    # exactly max_iters tool rounds executed before stopping (no further executions)
+    assert sum(1 for e in tracer.events if e.kind == "tool_call") == 2
+
+
+def test_prefetch_recall_is_fenced_message_not_in_frozen_snapshot():
+    """Architect fix: per-turn prefetch recall goes into a fenced <memory-context>
+    MESSAGE, never the system-prompt snapshot slot; self.parts is not mutated."""
+    from jobpin_agent.core.system_prompt import SystemPromptParts
+
+    class RecallHooks:
+        def prefetch(self, query, session_id):
+            return "RECALLED-FACT"
+
+        def after_turn(self, s, m):
+            return None
+
+        def on_delegation(self, t, r, c):
+            return None
+
+        def on_session_switch(self, *a):
+            return None
+
+        def on_pre_compress(self, m):
+            return ""
+
+    reg = ToolRegistry()
+    reg.register(echo_tool())
+    store = SessionStore()
+    provider = FakeProvider([ModelResponse(text="ok")])
+    parts = SystemPromptParts(org_policy="POLICY")
+    agent = Agent(provider, reg, store, hooks=RecallHooks(), parts=parts)
+    sid = store.create_session("s1")
+    agent.run_turn(sid, "hi")
+
+    sent = provider.calls[0]  # messages the model actually received
+    system = sent[0]
+    assert system.role == Role.SYSTEM
+    assert "RECALLED-FACT" not in system.content  # not baked into the frozen snapshot
+    assert any("<memory-context>" in m.content and "RECALLED-FACT" in m.content for m in sent)
+    assert agent.parts.memory_snapshot == ""  # self.parts never mutated

@@ -61,6 +61,31 @@ def test_parse_response_text_and_tool_calls():
     assert tc.is_tool_call and tc.tool_calls[0].name == "echo" and tc.tool_calls[0].arguments == {"text": "x"}
 
 
+def test_complete_omits_tools_when_none_and_includes_when_present():
+    class _Comp:
+        def __init__(self, sink):
+            self._sink = sink
+
+        def create(self, **kwargs):
+            self._sink.append(kwargs)
+            return _Resp(_Choice(_Msg(content="ok")))
+
+    class _Chat:
+        def __init__(self, sink):
+            self.completions = _Comp(sink)
+
+    class _Client:
+        def __init__(self, sink):
+            self.chat = _Chat(sink)
+
+    sink: list = []
+    provider = OpenAIProvider(CoreConfig(model_id="m"), client=_Client(sink))
+    provider.complete([Message(Role.USER, "hi")], tools=None)
+    assert "tools" not in sink[0]
+    provider.complete([Message(Role.USER, "hi")], tools=[echo_tool()])
+    assert sink[1]["tools"][0]["function"]["name"] == "echo"
+
+
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="no OPENAI_API_KEY; opt-in integration test")
 def test_openai_integration_real_turn():
     provider = OpenAIProvider(CoreConfig.from_env())

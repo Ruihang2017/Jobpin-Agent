@@ -40,7 +40,10 @@ class Agent:
         self.parts = parts or SystemPromptParts()
         self.max_tool_iterations = max_tool_iterations
 
-    def _compose(self, history: list[Message]) -> list[Message]:
+    def _compose(self, history: list[Message], recall: str) -> list[Message]:
+        # The system prompt is built from the FROZEN-SNAPSHOT slot only (static
+        # per session; filled by MemoryStore.format_for_system_prompt() at §1.2).
+        # We deliberately build a turn-local parts and never mutate self.parts.
         parts = SystemPromptParts(
             org_policy=self.parts.org_policy,
             compliance=self.parts.compliance,
@@ -49,19 +52,23 @@ class Agent:
             provider_block=self.parts.provider_block,
             tools=self.tools.specs(),
         )
-        system = Message(Role.SYSTEM, content=build_system_prompt(parts))
-        return [system, *history]
+        messages = [Message(Role.SYSTEM, content=build_system_prompt(parts))]
+        # Per-turn prefetch recall is a fenced <memory-context> MESSAGE (not the
+        # system prompt), keeping the prefix stable (Key Invariant #1). Inert in
+        # §1.1 (NoOpHooks returns ""); real recall arrives at §1.2/§1.3.
+        if recall:
+            messages.append(Message(Role.SYSTEM, content=f"<memory-context>\n{recall}\n</memory-context>"))
+        return [*messages, *history]
 
     def run_turn(self, session_id: str, user_input: str) -> TurnResult:
         self.tracer.event("turn_start", session_id=session_id)
-        # memory recall seam (no-op in §1.1); fed into the snapshot slot
-        self.parts.memory_snapshot = self.hooks.prefetch(user_input) or self.parts.memory_snapshot
+        recall = self.hooks.prefetch(user_input, session_id)  # per-turn fenced recall (no-op in §1.1)
         self.store.append_message(session_id, Message(Role.USER, content=user_input))
         iterations = 0
         while True:
             history = self.store.get_messages(session_id)
             self.tracer.event("model_call", iteration=iterations)
-            response = self.provider.complete(self._compose(history), self.tools.specs())
+            response = self.provider.complete(self._compose(history, recall), self.tools.specs())
             if response.is_tool_call:
                 if iterations >= self.max_tool_iterations:
                     self.tracer.event("turn_end", stopped=True)

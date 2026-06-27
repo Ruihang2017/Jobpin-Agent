@@ -3,6 +3,12 @@ FakeProvider by default (offline/deterministic); pass a provider_factory to
 run against OpenAI."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Allow `python agent/examples/demo_turn.py` without setting PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from jobpin_agent.core.agent_loop import Agent
 from jobpin_agent.core.delegation import delegate
 from jobpin_agent.core.messages import ModelResponse, ToolCall
@@ -38,7 +44,9 @@ def run_demo(provider_factory=None) -> dict:
     parent = Agent(make([ModelResponse(text="parent")]), reg, store, tracer=tracer)
     store.create_session("parent")
     deleg = delegate(
-        parent, "do subtask", child_provider=make([ModelResponse(text="child-done")]), child_session_id="child"
+        parent, "do subtask",
+        child_provider=make([ModelResponse(text="child-done")]),
+        child_session_id="child", parent_session_id="parent",
     ).text
 
     return {"plain": plain, "tool": tool, "delegation": deleg, "trace_events": len(tracer.events)}
