@@ -1,8 +1,22 @@
+"""Tests for the SQLite session store.
+
+EN —
+Confirms lossless round-trip of messages (incl. tool calls/results) and that
+branch/reset behave correctly and fire ``on_session_switch``.
+中文 —
+确认消息（含工具调用/结果）的无损往返，以及 branch/reset 行为正确并触发 ``on_session_switch``。
+"""
 from jobpin_agent.core.messages import Message, Role, ToolCall, ToolResult
 from jobpin_agent.core.session_store import SessionStore
 
 
 class RecordingHooks:
+    """A ``MemoryHooks`` stub that records ``on_session_switch`` calls.
+
+    EN: Lets tests assert which switches fired with what flags.
+    中文：使测试可断言触发了哪些切换及其标志。
+    """
+
     def __init__(self):
         self.switches = []
 
@@ -23,6 +37,12 @@ class RecordingHooks:
 
 
 def test_roundtrip_preserves_messages_with_tool_calls():
+    """Messages survive a store/read round-trip, including tool call args.
+
+    EN: Roles, the tool name, the parsed arguments dict, and the tool result all
+    come back intact after JSON serialisation.
+    中文：经 JSON 序列化后，角色、工具名、解析后的参数 dict 与工具结果均完整返回。
+    """
     s = SessionStore()
     sid = s.create_session("s1")
     s.append_message(sid, Message(Role.USER, "hi"))
@@ -36,6 +56,11 @@ def test_roundtrip_preserves_messages_with_tool_calls():
 
 
 def test_branch_forks_history_and_fires_switch():
+    """Branch copies history into a new session and fires a non-reset switch.
+
+    EN: The new session has the forked history; on_session_switch reset flag is False.
+    中文：新会话拥有分叉历史；on_session_switch 的 reset 标志为 False。
+    """
     h = RecordingHooks()
     s = SessionStore(hooks=h)
     sid = s.create_session("s1")
@@ -46,6 +71,11 @@ def test_branch_forks_history_and_fires_switch():
 
 
 def test_reset_clears_and_fires_switch():
+    """Reset empties a session's messages and fires a reset switch.
+
+    EN: get_messages becomes empty; the last on_session_switch reset flag is True.
+    中文：get_messages 变空；最后一次 on_session_switch 的 reset 标志为 True。
+    """
     h = RecordingHooks()
     s = SessionStore(hooks=h)
     sid = s.create_session("s1")
