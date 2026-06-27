@@ -16,7 +16,7 @@
 | Item | Content |
 |---|---|
 | Document version | v0.3 (Draft; adds architecture selection and kernel comparison, in-depth treatment of the memory system; converged onto Australia + local-first) |
-| Status | Pending review (Brainstorming output; has not entered the implementation plan) |
+| Status | Approved baseline; implementation plan derived (`02-Production-Plan`); Phase 0 implementation starting (2026-06) |
 | Author | Product owner (TBD) |
 | Date | 2026-06-24 |
 | Related documents | `02-Production-Plan.md` (industrial-grade delivery roadmap) |

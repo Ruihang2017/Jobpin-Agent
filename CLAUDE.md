@@ -148,6 +148,29 @@ and `docs/superpowers/plans/2026-06-26-wrap-docs-site.md`.
 
 5. **Created this `CLAUDE.md`.**
 
+### Session C — Phase 0 §1.1 Agent Core (branch `phase0/1.1-agent-core`, off `chore/wrap-docs-site`)
+
+First product point built end-to-end through the per-point cycle (§5). Added `agent/CLAUDE.md`
+(scoped dev guide), `TEXTBOOK_SPEC.md` (resolved a dangling Plan reference), and the §6 doc-currency
+contract; refreshed the PRD §0 status (EN+中文).
+
+6. **Implemented the Agent Core (Layer A)** — `agent/src/jobpin_agent/core/`: provider-agnostic
+   message/tool types, `ModelProvider` ABC + `FakeProvider` + minimal `OpenAIProvider` (all wire
+   mapping isolated), deterministic system-prompt assembler (golden snapshot), step-level tracer,
+   `MemoryHooks`/`NoOpHooks` seam, SQLite session store (branch/reset), the synchronous turn loop
+   (4 paths), and `delegate()` (skip_memory + parent observation). Spec + plan in
+   `docs/superpowers/{specs,plans}/2026-06-27-p0-1.1-agent-core*`.
+7. **Triple-reviewed** (senior engineer / architect / PM). Key fix: per-turn `prefetch` recall is a
+   fenced `<memory-context>` **message**, not the frozen system-prompt snapshot slot (keeps the
+   prefix stable; lets §1.2–1.6 attach without a loop refactor). Also added `session_id` to
+   `prefetch`, delegation lineage + parent context, and corrected Plan §1.1's compression wording
+   (the seam is here; wiring is §1.6) **before** finalizing.
+8. **Tests:** `python -m pytest agent` → **24 passed, 1 skipped** (opt-in OpenAI integration). Demo
+   runs offline. Bilingual study devlog at `site/devlog/p0-1.1-agent-core{,-EN}.md`.
+
+Known intentional gap: `config.db_path` / `max_tool_iterations` aren't wired to a composition root
+yet (no real app entry point until later). Next point: **§1.2** (file-backed `MemoryStore` port).
+
 ### Commit log on `chore/wrap-docs-site` (newest last)
 
 ```
@@ -161,37 +184,79 @@ d3a2be7  docs: design spec for wrapping docs site + opening agent/ product home
 
 ---
 
-## 5. Workflow convention — automated superpowers flow (single-agent)
+## 5. Workflow convention — automated superpowers cycle (single-agent, one point at a time)
 
-**We use the Superpowers workflow as the main approach.** For feature/change work the order is:
-**brainstorming → spec → writing-plans → execution**, with specs in
-`docs/superpowers/specs/` and plans in `docs/superpowers/plans/`.
+**We use the Superpowers workflow as the main approach**, working **one small Production-Plan point
+per cycle** (the smallest workstream sub-item — e.g. §1.1 Agent Core; never bundle points). For each
+point the full cycle is:
 
-**Automation (sanctioned by the repo owner — overrides the skills' intermediate HITL gates):**
-Once the **user has approved the design** at the end of brainstorming, **proceed automatically and
-without pausing** through:
+> **brainstorm → spec → writing-plans → execute → test → triple-review → document**
 
-> write spec → **self-review spec** → write plan → **self-review plan** → **execute (single-agent,
-> inline)**
+with specs in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/`.
 
-Do **not** stop to ask the user to review the spec, and do **not** ask "which execution approach?"
-— default to **single-agent inline execution** (`superpowers:executing-plans`), not subagent
-fan-out, unless the user asks otherwise. The self-review steps still run (and are the quality gate);
-the spec and plan are still written and committed. We are **automating the wait-for-user gates the
-owner would not read anyway**, not skipping the steps.
+**Automation (sanctioned by the repo owner — overrides the skills' intermediate HITL gates):** once
+the **user has approved the design** for a point, **proceed automatically and without pausing**
+through: write spec → self-review spec → write plan → self-review plan → execute (single-agent,
+inline) → test → triple-review → document. Default to **single-agent inline execution**
+(`superpowers:executing-plans`), not subagent fan-out, for the *implementation*. The self-review
+steps still run; spec and plan are still written and committed. We automate the **wait-for-user
+review gates**, not the steps themselves.
 
-**Gates that are KEPT (still require the user):**
-- The **design / approach approval** in brainstorming (the creative decision the owner does review).
-- Anything **irreversible or outward-facing**: `git push`, merging to `main`, triggering a
-  **Netlify deploy**, deleting/overwriting files not created this session, sending data to external
-  services. Confirm these before acting.
+**Exceptions ALWAYS kept (still pause / require input):**
+- **Clarifying questions** — still ask them whenever a genuine ambiguity would change the work.
+  Automation removes the wait-for-review gates, **not** the right to ask. (Brainstorming always
+  involves clarifying questions before the design.)
+- **Design / approach approval** in brainstorming (the creative decision the owner reviews).
+- **Irreversible or outward-facing actions**: `git push`, merging to `main`, triggering a Netlify
+  deploy, deleting/overwriting files not created this session, sending data to external services.
+  Confirm before acting.
+
+**After implementing each point — test, then triple-review against the Production Plan:**
+1. **Test** the point against its acceptance measures (`TEXTBOOK_SPEC.md`).
+2. **Review from three independent perspectives** (e.g. three focused review subagents): **senior
+   engineer** (correctness, quality, test design), **architect** (boundaries, fit with the
+   Hermes-derived design and the §1.x dependency order), **product manager** (does it match PRD/Plan
+   intent + acceptance criteria). Each confirms the point is **in line with the Production Plan**.
+3. **If a review finds the Production Plan (or PRD) itself is wrong**, fix the doc **first** —
+   bilingually (EN + 中文, per §6), leaving the rationale — **then** implement against the corrected
+   plan. The Plan is the source of truth, but it is correctable; never quietly diverge from it.
+
+**Document every implemented point as a bilingual study reference** (see §6).
 
 This convention lives here because CLAUDE.md instructions take precedence over default skill
 behavior (user instructions > skills > system default).
 
 ---
 
-## 6. Product decisions & constraints to respect
+## 6. Documentation currency (keep docs in sync — required)
+
+Docs are part of a change, not an afterthought. In the **same commit/PR** as the change that makes
+them stale:
+
+- **READMEs** — update `README.md` (root, the monorepo map) and/or `agent/README.md` (product dev
+  quickstart) whenever structure, commands, layout, or the deploy boundary change.
+- **PRD + Production Plan** (`site/plan/01-PRD*.md`, `02-Production-Plan*.md`) — update whenever
+  product scope, architecture, a recorded decision, or an acceptance measure changes. **Always edit
+  EN and 中文 together** (`*-EN.md` and the matching Chinese file) so they stay in lockstep.
+- **`agent/THIRD_PARTY_NOTICES.md`** — update whenever a file is ported from Hermes (Tenet 1 of
+  `TEXTBOOK_SPEC.md`).
+- **This file** — reflect finished work in §4 (handover) / §8 (status), and the PRD §0 status if the
+  project phase changed.
+- **Per-point study reference (`site/devlog/`)** — every implemented Production-Plan point gets a
+  teaching write-up explaining **how it was implemented and why**, in **EN + 中文**
+  (`p<phase>-<point>-<slug>-EN.md` + the Chinese base name `p<phase>-<point>-<slug>.md`), so the repo
+  doubles as a study reference. These live under `site/` (served docs); wiring them into the viewer's
+  navigation is an optional follow-up.
+
+Rule of thumb: if a reader following the docs would be misled after your change, the docs are part
+of the change — a PR that alters behaviour/structure without the matching doc update is incomplete.
+
+> Optional hard enforcement: a Stop hook can remind to check doc currency before finishing — ask to
+> have it wired into `settings.json` if you want it enforced rather than conventional.
+
+---
+
+## 7. Product decisions & constraints to respect
 
 - **Local-first by default** (commercial product): agent runtime, memory, and HR data run/stored on
   the customer's premises; PII does not leave by default. Outbound calls are optional, disableable,
@@ -212,15 +277,20 @@ behavior (user instructions > skills > system default).
 
 ---
 
-## 7. Current status & next steps
+## 8. Current status & next steps
 
-**Status:** restructure + provider-doc updates complete on `chore/wrap-docs-site`; **nothing merged
-to `main`; production untouched.** `agent/` is an empty skeleton.
+**Status:**
+- Restructure + provider-doc updates: complete on `chore/wrap-docs-site` (tested on Netlify), **not
+  yet merged to `main`; production untouched**.
+- Phase 0 **§1.1 Agent Core: complete** on `phase0/1.1-agent-core` (branched off the above);
+  24 tests pass; triple-reviewed; bilingual devlog written. **Not merged.**
+
+**Branch stack (newest on top), all unmerged:** `phase0/1.1-agent-core` → `chore/wrap-docs-site` →
+`main`. A merge of `phase0/1.1-agent-core` to `main` would carry everything (fast-forwardable).
 
 **Immediate next steps:**
-1. **Land the restructure:** push `chore/wrap-docs-site`, open the Netlify **deploy preview**,
-   confirm it matches production, then merge to `main`. (Owner action — involves push/deploy/merge.)
-2. **Start the product — Production Plan Phase 0:** the thin end-to-end slice + the Hermes memory
-   port (`memory_tool.py` → `memory_provider.py`/`memory_manager.py`, `threat_patterns.py`). This is
-   substantial and gets its own brainstorm → spec → plan cycle. The first concrete provider work is
-   the §1.11 `ai/providers` adapter layer with the OpenAI adapter.
+1. **Land the work:** owner pushes/merges to `main` (auto-deploys to Netlify). The restructure was
+   already verified on a Netlify build; merging is a kept gate (push/deploy/merge).
+2. **Next point — §1.2:** port the file-backed Hermes `MemoryStore` (Org/Recruiter memory) — it fills
+   the frozen-snapshot slot and provides real `prefetch()` recall through the seam defined in §1.1,
+   with no change to `agent_loop.py`. Runs through the same per-point cycle (§5).
