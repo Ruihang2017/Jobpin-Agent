@@ -100,13 +100,13 @@ Canonical data model + audit log ──► Security baseline ──► Integrati
 
 ### 1.1 Workstream: Agent Core (Layer A) port and local runtime
 
-**What (contract)**: A self-contained, provider-agnostic, locally running agent core that can complete one full turn — "system-prompt assembly → tool-call loop → subagent delegation → context compression" — and that exposes stable extension points for upper-layer HR modules to attach tools and memory.
+**What (contract)**: A self-contained, provider-agnostic, locally running agent core that can complete one full turn — "system-prompt assembly → tool-call loop → subagent delegation" — and that exposes stable extension points for upper-layer HR modules to attach tools and memory.
 
 **Scope**:
 - **Conversation loop**: drawing on the turn-loop design of Hermes's `agent/conversation_loop.py`, **rewritten as a lean, ownable local version** (without porting the parts tightly coupled to its CLI/TUI/gateway). Retained: tool calling with structured tool schemas, stop conditions, multi-turn continuation.
 - **System-prompt assembly**: drawing on `agent/system_prompt.py`, with a fixed assembly order: organisational policy / compliance constraints / role permissions → memory frozen snapshot (`MemoryStore.format_for_system_prompt()`) → provider static block (`MemoryProvider.system_prompt_block()`) → tool descriptions.
 - **Subagent delegation**: drawing on Hermes's `on_delegation(...)` pattern, implement parent→child task delegation; subagents run with `skip_memory`, and the parent agent observes the output via `MemoryProvider.on_delegation(task, result, child_session_id=...)`.
-- **Context compression**: drawing on `agent/conversation_compression.py`; **explicitly wire the pre-compression hook** (see 1.6 — this is the gap Hermes's mainline does not wire automatically).
+- **Context compression**: §1.1 exposes only the `on_pre_compress` hook **signature** as an extension point (drawing on `agent/conversation_compression.py`). The actual wiring + fact-injection + integration test is **§1.6** (the gap Hermes's mainline does not wire automatically) and is **not** part of §1.1's exit gate.
 - **Session persistence**: a local SQLite session store (lightweight, single file), supporting `/resume`, `/branch`, `/reset` semantics that trigger `on_session_switch`.
 - **Model layer**: a provider-agnostic abstraction (see the model routing in 1.11), defaulting to a local model with an optional cloud model.
 

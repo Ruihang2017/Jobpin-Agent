@@ -100,13 +100,13 @@
 
 ### 1.1 工作流：Agent Core（A 层）移植与本地运行时
 
-**What（契约）**：一个自包含、provider 无关、本地运行的 agent 内核，能完成"系统提示装配 → 工具调用循环 → 子代理委派 → 上下文压缩"一个完整回合，并暴露稳定的扩展点供上层 HR 模块挂载工具与记忆。
+**What（契约）**：一个自包含、provider 无关、本地运行的 agent 内核，能完成"系统提示装配 → 工具调用循环 → 子代理委派"一个完整回合，并暴露稳定的扩展点供上层 HR 模块挂载工具与记忆。
 
 **范围（Scope）**：
 - **会话循环**：借鉴 Hermes `agent/conversation_loop.py` 的 turn 循环设计，**重写为精简、可拥有的本地版本**（不移植其与 CLI/TUI/gateway 强耦合的部分）。保留：结构化 tool schema 的工具调用、停止条件、多轮续跑。
 - **系统提示装配**：借鉴 `agent/system_prompt.py`，装配顺序固定为：组织政策 / 合规约束 / 角色权限 → 记忆冻结快照（`MemoryStore.format_for_system_prompt()`）→ provider 静态块（`MemoryProvider.system_prompt_block()`）→ 工具说明。
 - **子代理委派**：借鉴 Hermes `on_delegation(...)` 模式，实现父→子任务委派；子代理以 `skip_memory` 运行，父代理通过 `MemoryProvider.on_delegation(task, result, child_session_id=...)` 观测产出。
-- **上下文压缩**：借鉴 `agent/conversation_compression.py`；**显式接线压缩前钩子**（见 1.6，这是 Hermes 主干没自动接的缺口）。
+- **上下文压缩**：§1.1 仅暴露 `on_pre_compress` 钩子**签名**作为扩展点（借鉴 `agent/conversation_compression.py`）。真正的接线 + 事实注入 + 集成测试在 **§1.6**（Hermes 主干没自动接的缺口），**不**属于 §1.1 的退出门。
 - **会话持久化**：本地 SQLite 会话存储（轻量，单文件），支持 `/resume`、`/branch`、`/reset` 语义触发 `on_session_switch`。
 - **模型层**：provider 无关抽象（见 1.11 的模型路由），默认本地模型、可选云模型。
 
