@@ -291,17 +291,18 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 ## 8. Current status & next steps
 
 **Status:**
-- Restructure + provider-doc updates: complete on `chore/wrap-docs-site` (tested on Netlify), **not
-  yet merged to `main`; production untouched**.
-- Phase 0 **§1.1 Agent Core: complete** on `phase0/1.1-agent-core` (branched off the above);
-  24 tests pass; triple-reviewed; bilingual devlog written. **Not merged.**
+- Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
+  .env / chat / observability / docs follow-ons.
+- Phase 0 **§1.2 file-backed `MemoryStore`: complete** on `phase0/1.2-memory-store` (off `main`);
+  47 tests pass; triple-reviewed (port confirmed **faithful**); security review
+  (`docs/security/p0-1.2-…`) + bilingual devlog written. **Not merged.**
 
-**Branch stack (newest on top), all unmerged:** `phase0/1.1-agent-core` → `chore/wrap-docs-site` →
-`main`. A merge of `phase0/1.1-agent-core` to `main` would carry everything (fast-forwardable).
+**Branch:** `phase0/1.2-memory-store` → `main` (the §1.2 work sits on top of the merged §1.1; clean
+fast-forward).
 
 **Immediate next steps:**
-1. **Land the work:** owner pushes/merges to `main` (auto-deploys to Netlify). The restructure was
-   already verified on a Netlify build; merging is a kept gate (push/deploy/merge).
-2. **Next point — §1.2:** port the file-backed Hermes `MemoryStore` (Org/Recruiter memory) — it fills
-   the frozen-snapshot slot and provides real `prefetch()` recall through the seam defined in §1.1,
-   with no change to `agent_loop.py`. Runs through the same per-point cycle (§5).
+1. **Land §1.2:** owner merges `phase0/1.2-memory-store` → `main` (kept gate; auto-deploys Netlify).
+2. **Next point — §1.3:** port the `MemoryProvider` + `MemoryManager` orchestration — it wires the
+   §1.2 store into the agent loop **through the §1.1 seam** (`format_for_system_prompt()` → the
+   `memory_snapshot` slot; a real `prefetch()` → fenced recall), with **no change to
+   `agent_loop.py`**. Same per-point cycle (§5).
