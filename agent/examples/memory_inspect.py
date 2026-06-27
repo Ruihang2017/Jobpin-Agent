@@ -59,4 +59,10 @@ def run_inspect() -> dict:
 
 
 if __name__ == "__main__":  # pragma: no cover
+    # The snapshot block uses box-drawing chars; force UTF-8 so legacy consoles
+    # (Windows cp1252) don't raise UnicodeEncodeError.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     print(json.dumps(run_inspect(), ensure_ascii=False, indent=2))
