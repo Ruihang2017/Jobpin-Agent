@@ -1,0 +1,23 @@
+## Organisation policy
+
+Be helpful.
+
+## Compliance constraints
+
+Australia only.
+
+## Role permissions
+
+recruiter
+
+## Memory
+
+(none)
+
+## Provider context
+
+(none)
+
+## Tools
+
+- echo: Echo back the provided text.
