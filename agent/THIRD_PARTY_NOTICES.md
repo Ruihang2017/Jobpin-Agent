@@ -16,6 +16,21 @@ Files derived from Hermes will be listed here as they are ported, e.g.:
 (No files are ported yet. Keep the MIT copyright + license text below in any
 substantial copied portion.)
 
+## §1.1 Agent Core — provenance (design-derived; no substantial code copied)
+
+| Jobpin file | Hermes source (design borrowed) | Strategy |
+|---|---|---|
+| `core/agent_loop.py` | `agent/conversation_loop.py::run_conversation` | New (rewrite, borrows turn-loop concept) |
+| `core/system_prompt.py` | `agent/system_prompt.py::build_system_prompt` / `format_tools_for_system_message` | New (rewrite, borrows fixed-order assembly) |
+| `core/delegation.py` | `on_delegation` pattern | New (borrows skip_memory + parent-observes invariant) |
+| `core/hooks.py` | `agent/memory_provider.py` lifecycle (prefetch/sync/on_pre_compress/on_session_switch) | New (interface seam only) |
+| `core/session_store.py` | Hermes SQLite session persistence | New (rewrite) |
+| `core/model/*` | Hermes provider-agnostic model layer | New (minimal ABC + OpenAI adapter) |
+
+No substantial Hermes code is copied at §1.1 (rewrite). Code-porting of the memory subsystem
+(`memory_tool.py` / `memory_provider.py` / `memory_manager.py`, `threat_patterns.py`) begins at §1.2,
+at which point the MIT copyright + licence text below applies to the copied portions.
+
 ---
 
 MIT License
