@@ -148,6 +148,29 @@ and `docs/superpowers/plans/2026-06-26-wrap-docs-site.md`.
 
 5. **Created this `CLAUDE.md`.**
 
+### Session C — Phase 0 §1.1 Agent Core (branch `phase0/1.1-agent-core`, off `chore/wrap-docs-site`)
+
+First product point built end-to-end through the per-point cycle (§5). Added `agent/CLAUDE.md`
+(scoped dev guide), `TEXTBOOK_SPEC.md` (resolved a dangling Plan reference), and the §6 doc-currency
+contract; refreshed the PRD §0 status (EN+中文).
+
+6. **Implemented the Agent Core (Layer A)** — `agent/src/jobpin_agent/core/`: provider-agnostic
+   message/tool types, `ModelProvider` ABC + `FakeProvider` + minimal `OpenAIProvider` (all wire
+   mapping isolated), deterministic system-prompt assembler (golden snapshot), step-level tracer,
+   `MemoryHooks`/`NoOpHooks` seam, SQLite session store (branch/reset), the synchronous turn loop
+   (4 paths), and `delegate()` (skip_memory + parent observation). Spec + plan in
+   `docs/superpowers/{specs,plans}/2026-06-27-p0-1.1-agent-core*`.
+7. **Triple-reviewed** (senior engineer / architect / PM). Key fix: per-turn `prefetch` recall is a
+   fenced `<memory-context>` **message**, not the frozen system-prompt snapshot slot (keeps the
+   prefix stable; lets §1.2–1.6 attach without a loop refactor). Also added `session_id` to
+   `prefetch`, delegation lineage + parent context, and corrected Plan §1.1's compression wording
+   (the seam is here; wiring is §1.6) **before** finalizing.
+8. **Tests:** `python -m pytest agent` → **24 passed, 1 skipped** (opt-in OpenAI integration). Demo
+   runs offline. Bilingual study devlog at `site/devlog/p0-1.1-agent-core{,-EN}.md`.
+
+Known intentional gap: `config.db_path` / `max_tool_iterations` aren't wired to a composition root
+yet (no real app entry point until later). Next point: **§1.2** (file-backed `MemoryStore` port).
+
 ### Commit log on `chore/wrap-docs-site` (newest last)
 
 ```
@@ -256,13 +279,18 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 
 ## 8. Current status & next steps
 
-**Status:** restructure + provider-doc updates complete on `chore/wrap-docs-site`; **nothing merged
-to `main`; production untouched.** `agent/` is an empty skeleton.
+**Status:**
+- Restructure + provider-doc updates: complete on `chore/wrap-docs-site` (tested on Netlify), **not
+  yet merged to `main`; production untouched**.
+- Phase 0 **§1.1 Agent Core: complete** on `phase0/1.1-agent-core` (branched off the above);
+  24 tests pass; triple-reviewed; bilingual devlog written. **Not merged.**
+
+**Branch stack (newest on top), all unmerged:** `phase0/1.1-agent-core` → `chore/wrap-docs-site` →
+`main`. A merge of `phase0/1.1-agent-core` to `main` would carry everything (fast-forwardable).
 
 **Immediate next steps:**
-1. **Land the restructure:** push `chore/wrap-docs-site`, open the Netlify **deploy preview**,
-   confirm it matches production, then merge to `main`. (Owner action — involves push/deploy/merge.)
-2. **Start the product — Production Plan Phase 0:** the thin end-to-end slice + the Hermes memory
-   port (`memory_tool.py` → `memory_provider.py`/`memory_manager.py`, `threat_patterns.py`). This is
-   substantial and gets its own brainstorm → spec → plan cycle. The first concrete provider work is
-   the §1.11 `ai/providers` adapter layer with the OpenAI adapter.
+1. **Land the work:** owner pushes/merges to `main` (auto-deploys to Netlify). The restructure was
+   already verified on a Netlify build; merging is a kept gate (push/deploy/merge).
+2. **Next point — §1.2:** port the file-backed Hermes `MemoryStore` (Org/Recruiter memory) — it fills
+   the frozen-snapshot slot and provides real `prefetch()` recall through the seam defined in §1.1,
+   with no change to `agent_loop.py`. Runs through the same per-point cycle (§5).
