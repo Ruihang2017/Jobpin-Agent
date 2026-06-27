@@ -12,11 +12,19 @@ This directory is **not** part of the Netlify-deployed docs site.
 
 ```bash
 cd agent
-python -m pytest        # runs the smoke test
+python -m pytest        # runs the offline test suite (no key needed)
 ```
 
-Internal structure (Agent Core, Memory Subsystem, sub-agents, orchestration)
-is built in Phase 0 of the Production Plan and intentionally not scaffolded yet.
+To run against a real model, copy the env template and add your OpenAI key
+(`.env` is gitignored — never commit it):
+
+```bash
+cp .env.example .env    # then edit .env: OPENAI_API_KEY=sk-...
+```
+
+`CoreConfig.from_env()` loads `agent/.env` automatically. Internal structure
+(Agent Core, Memory Subsystem, sub-agents, orchestration) is built in Phase 0 of
+the Production Plan and intentionally not scaffolded yet.
 
 ## Contents / 目录
 
