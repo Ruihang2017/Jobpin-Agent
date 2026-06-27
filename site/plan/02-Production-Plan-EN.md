@@ -140,14 +140,14 @@ Canonical data model + audit log ──► Security baseline ──► Integrati
 **Scope (down to specific Hermes source symbols)**: port the `MemoryStore` class of `tools/memory_tool.py` and all its mechanisms:
 - **Two-state model**: `_system_prompt_snapshot` (frozen) vs `memory_entries` / `user_entries` (live). In Jobpin Agent these map to **Org memory** (≈ `MEMORY.md`: organisational hiring standards / competency frameworks / scoring rubrics / policy) and **Recruiter memory** (≈ `USER.md`: a recruiter's personal preferences / communication style / a hiring manager's "bar").
 - **Entry delimiter and fixed-length budget**: `ENTRY_DELIMITER = "\n§\n"` (the section-sign character on its own line); each has a character budget (Hermes defaults to 2200 / 1375; Jobpin Agent recalibrates these for Org/Recruiter, but keeps the "fixed length enforces a high signal-to-noise ratio" design).
-- **Load**: `load_from_disk()` → read the two files → split on the delimiter and drop blanks → **deduplicate** (`dict.fromkeys`, order-preserving, keeping the first occurrence) → scan each entry with `threat_patterns` (strict scope), and on a hit replace it in the **snapshot** with a `[BLOCKED: …]` placeholder (the live state retains the original text for human review / deletion) → freeze the snapshot.
+- **Load**: `load_from_disk()` → read the two files → split on the delimiter and drop blanks → **deduplicate** (`dict.fromkeys`, order-preserving, keeping the first occurrence) → scan each entry via the injected threat-scan seam (the real `threat_patterns` library, strict scope, is ported at §1.6), and on a hit replace it in the **snapshot** with a `[BLOCKED: …]` placeholder (the live state retains the original text for human review / deletion) → freeze the snapshot.
 - **Store**: `save_to_disk()` → `_write_file()`: write a temp file → `fsync` → **atomic `os.replace`** (a reader only ever sees the complete old file or the complete new file, with no truncation race); the read-modify-write happens under an exclusive lock on a **separate `.lock` file** (`fcntl` / Windows `msvcrt`).
 - **Add/remove/edit**: `add` / `replace` / `remove`, where replace/remove use **short unique-substring matching** (not full text, not ID); if the match hits multiple **distinct** entries it errors and asks for something more specific (to prevent accidental deletion).
 - **Batch atomicity**: `apply_batch` makes multiple operations **all-or-nothing** and validates only against the **final** budget — "rearrange first, then add" within a single tool call, avoiding multiple round-trips that resend context.
 - **Drift detection**: `_detect_external_drift` — on finding "content that cannot round-trip" or "a giant single entry exceeding the whole store's budget" (suspected patch tool / shell append / manual edit / concurrent-session write) → first snapshot to `.bak.<ts>`, then **reject this write** (to prevent silent data loss).
 - **Write gate**: `_apply_write_gate` / `write_approval` — optional human approval / staging (background staging, interactive inline prompt), pass-through by default.
 
-**Sketch of the in-entry governance header (interface TBD — to be defined in this phase)**: the file-backed store still holds plain-text entries; Jobpin Agent prefixes each entry with a **machine-parseable governance header** (without breaking `ENTRY_DELIMITER` splitting — the header and body belong to the same entry), for 1.5 to validate and back-link. The fields are 1.5's `provenance + consent_label + retention_policy` landed in the header of a single entry:
+**Sketch of the in-entry governance header (interface deferred to §1.5; §1.2 keeps entries opaque so the header can be prefixed later without breaking `ENTRY_DELIMITER`)**: the file-backed store still holds plain-text entries; Jobpin Agent prefixes each entry with a **machine-parseable governance header** (without breaking `ENTRY_DELIMITER` splitting — the header and body belong to the same entry), for 1.5 to validate and back-link. The fields are 1.5's `provenance + consent_label + retention_policy` landed in the header of a single entry:
 
 ```
 key: acme:apac:org:policy        # namespace key (see Section 1.0)
@@ -177,7 +177,7 @@ If `consent_id` is missing (when `source_type` requires consent) → the 1.5 `co
 
 **Deliverables**:
 - [ ] `memory/store`: the ported `MemoryStore`, including the two states, fixed length, atomic write, file lock, drift detection, batch atomicity, and write gate, with **per-method docstrings retained and updated to note the port's origin**.
-- [ ] Two named instances, Org / Recruiter, plus their character-budget config items.
+- [ ] Two targets in **one** store (`org` / `recruiter`) — a single `MemoryStore` holding both, not two objects — plus their character-budget config items.
 - [ ] A unit-test suite covering the original Hermes behaviour case by case: atomic write with no truncation race, concurrent add under lock, drift detection producing `.bak` and rejecting, `apply_batch` all-or-nothing, replace ambiguous-match error, fixed-length overflow error echoing the current entries.
 - [ ] A **security review record**: MIT is "as is" with no warranty, so ported code must undergo its own security review (a regulated product cannot blindly trust third-party code) — produce a review checklist and conclusions.
 
@@ -188,7 +188,7 @@ If `consent_id` is missing (when `source_type` requires consent) → the 1.5 `co
 - **Budget recalibration**: Org (≈ `MEMORY.md`) carries organisational standards / rubrics and has more entries than Recruiter, so its character budget needs raising; but **keep the "fixed length enforces a high signal-to-noise ratio" principle** and do not allow unbounded growth (which would break the prefix-cache benefit of the frozen snapshot).
 
 **Exit Criteria**:
-- All of the above unit tests are green, passing on both the Windows and POSIX file-lock paths.
+- All of the above unit tests are green; the lock *path* is exercised on the host OS (msvcrt on Windows, fcntl on POSIX) and "no truncation" is verified via the atomic round-trip. True two-process concurrency and the cross-OS lock path are CI / integration concerns, not unit tests.
 - Injection adversarial: write Org/Recruiter entries containing injection patterns to disk; after loading, they are **replaced with `[BLOCKED:]` in the snapshot while the live state retains the original**, with 0 cases entering the system prompt.
 - Drift drill: induce drift by external means (appending over-long text directly); the next write is rejected and a `.bak` is generated, with zero loss of the original content.
 

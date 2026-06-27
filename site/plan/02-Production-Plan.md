@@ -140,14 +140,14 @@
 **范围（Scope，具体到 Hermes 源码符号）**：移植 `tools/memory_tool.py` 的 `MemoryStore` 类及其全部机制：
 - **两态模型**：`_system_prompt_snapshot`（冻结）vs `memory_entries` / `user_entries`（活动）。在 Jobpin Agent 中映射为 **Org 记忆**（≈ `MEMORY.md`，组织招聘标准 / 能力框架 / 评分标尺 / 政策）与 **Recruiter 记忆**（≈ `USER.md`，招聘官个人偏好 / 沟通风格 / 用人经理的"bar"）。
 - **条目分隔与定长预算**：`ENTRY_DELIMITER = "\n§\n"`（独占一行的章节号）；各有字符预算（Hermes 默认 2200 / 1375，Jobpin Agent 按 Org/Recruiter 重新标定，但保留"定长强制高信噪"的设计）。
-- **加载 Load**：`load_from_disk()` → 读两文件 → 按分隔符切分去空 → **去重**（`dict.fromkeys`，保序保首条）→ 逐条 `threat_patterns`（strict 域）扫描，命中则在**快照**里替换为 `[BLOCKED: …]` 占位（活动态保留原文供人工查看 / 删除）→ 冻结快照。
+- **加载 Load**：`load_from_disk()` → 读两文件 → 按分隔符切分去空 → **去重**（`dict.fromkeys`，保序保首条）→ 逐条经注入的威胁扫描接缝扫描（真实 `threat_patterns` 库，strict 域，在 §1.6 移植），命中则在**快照**里替换为 `[BLOCKED: …]` 占位（活动态保留原文供人工查看 / 删除）→ 冻结快照。
 - **存储 Store**：`save_to_disk()` → `_write_file()`：写临时文件 → `fsync` → **原子 `os.replace`**（读者只会看到完整旧文件或完整新文件，无截断竞态）；读改写在**独立 `.lock` 文件**的排他锁下进行（`fcntl` / Windows `msvcrt`）。
 - **增删改**：`add` / `replace` / `remove`，其中 replace/remove 用**短唯一子串匹配**（非全文、非 ID）；匹配到多个**不同**条目则报错要求更具体（防误删）。
 - **批量原子**：`apply_batch` 多操作**全有或全无**、只对**最终预算**校验——一次工具调用内"先腾挪再新增"，免去多轮重发上下文。
 - **漂移检测**：`_detect_external_drift` —— 发现"无法 round-trip 的内容"或"超过整库预算的巨型单条目"（疑似 patch 工具 / shell 追加 / 手改 / 并发会话写入）→ 先快照 `.bak.<ts>` 再**拒绝本次写入**（防静默数据丢失）。
 - **写入门禁**：`_apply_write_gate` / `write_approval`——可选的人工审批 / 暂存（background 暂存、interactive 内联提示），默认透传。
 
-**条目内嵌的治理头草图（接口待定，本阶段定义）**：文件型 store 仍存纯文本条目，Jobpin Agent 在每条条目前缀一段**机器可解析的治理头**（不破坏 `ENTRY_DELIMITER` 切分，header 与正文同属一条 entry），供 1.5 校验与回链。字段即 1.5 的 `provenance + consent_label + retention_policy` 落到单条 entry 头：
+**条目内嵌的治理头草图（接口推迟到 §1.5；§1.2 保持条目不透明，以便日后在不破坏 `ENTRY_DELIMITER` 的前提下前缀该头）**：文件型 store 仍存纯文本条目，Jobpin Agent 在每条条目前缀一段**机器可解析的治理头**（不破坏 `ENTRY_DELIMITER` 切分，header 与正文同属一条 entry），供 1.5 校验与回链。字段即 1.5 的 `provenance + consent_label + retention_policy` 落到单条 entry 头：
 
 ```
 key: acme:apac:org:policy        # 命名空间 key（见第 1.0 节）
@@ -177,7 +177,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 
 **交付物（Deliverables）**：
 - [ ] `memory/store`：移植的 `MemoryStore`，含两态、定长、原子写、文件锁、漂移检测、批量原子、写门禁，**逐方法保留并更新 docstring 注明移植来源**。
-- [ ] Org / Recruiter 两个具名实例 + 其字符预算配置项。
+- [ ] 同一 `MemoryStore` 中的两个目标（`org` / `recruiter`，单一对象承载二者，非两个对象）+ 其字符预算配置项。
 - [ ] 单元测试集，逐条覆盖原 Hermes 行为：原子写无截断竞态、锁下并发 add、漂移检测产出 `.bak` 且拒写、`apply_batch` 全有或全无、replace 多义匹配报错、定长溢出报错并回显当前条目。
 - [ ] **安全审查记录**：MIT 为 "as is" 无担保，移植代码须自做安全审查（受监管产品不可盲信第三方代码）——产出审查清单与结论。
 
@@ -188,7 +188,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 - **预算重标定**：Org（≈ `MEMORY.md`）承载组织标准 / 标尺，条目多于 Recruiter，需上调字符预算；但**保留"定长强制高信噪"原则**，不允许无界增长（无界会破坏冻结快照的 prefix 缓存收益）。
 
 **退出标准（Exit）**：
-- 上述单元测试全绿，且在 Windows + POSIX 两套文件锁路径下均通过。
+- 上述单元测试全绿；锁*路径*在宿主 OS 上演练（Windows 用 msvcrt、POSIX 用 fcntl），并经原子往返验证“无截断”。真正的两进程并发与跨 OS 锁路径属 CI / 集成范畴，非单元测试。
 - 注入对抗：构造含注入模式的 Org/Recruiter 条目写入磁盘，加载后**快照中被替换为 `[BLOCKED:]`、活动态保留原文**，0 例进入系统提示。
 - 漂移演练：用外部手段（直接追加超长文本）制造漂移，下一次写入被拒并生成 `.bak`，原内容零丢失。
 
