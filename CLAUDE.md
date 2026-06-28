@@ -305,15 +305,22 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete** on `phase0/1.2-memory-store` (off `main`);
-  47 tests pass; triple-reviewed (port confirmed **faithful**); security review
-  (`docs/security/p0-1.2-…`) + bilingual devlog written. **Not merged.**
+  triple-reviewed (port confirmed **faithful**); security review (`docs/security/p0-1.2-…`) +
+  bilingual devlog written. **Not merged.**
+- Phase 0 **§1.3 `MemoryProvider` + `MemoryManager` + fence + seam: complete** on
+  `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`); **70 tests pass, 1 skipped**;
+  triple-reviewed (all three **YES**, port **faithful**, "no `agent_loop.py` change" git-verified);
+  Plan corrected (EN+中文) per the review; security review (`docs/security/p0-1.3-…`) + bilingual
+  devlog written. **Not merged.** The agent's system prompt now carries Org/Recruiter memory through
+  the seam with no loop change; the governed model-facing **write tool is deferred to §1.5**.
 
-**Branch:** `phase0/1.2-memory-store` → `main` (the §1.2 work sits on top of the merged §1.1; clean
-fast-forward).
+**Branch:** `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`, off `main`). Merge
+order: **§1.2 → §1.3**.
 
 **Immediate next steps:**
-1. **Land §1.2:** owner merges `phase0/1.2-memory-store` → `main` (kept gate; auto-deploys Netlify).
-2. **Next point — §1.3:** port the `MemoryProvider` + `MemoryManager` orchestration — it wires the
-   §1.2 store into the agent loop **through the §1.1 seam** (`format_for_system_prompt()` → the
-   `memory_snapshot` slot; a real `prefetch()` → fenced recall), with **no change to
-   `agent_loop.py`**. Same per-point cycle (§5).
+1. **Land §1.2 then §1.3:** owner merges `phase0/1.2-memory-store` → `main`, then
+   `phase0/1.3-memory-provider-manager` → `main` (kept gate; auto-deploys Netlify).
+2. **Next point — §1.4 or §1.5:** §1.4 = embedded vector store + Candidate/Semantic providers behind
+   the §1.3 `MemoryProvider` interface (mind the §1.4 ↔ Phase-2 single-external reconciliation flagged
+   in Plan §1.3); §1.5 = HR memory governance — the write-gate **and** the model-facing `memory` write
+   tool, born governed. Same per-point cycle (§5).
