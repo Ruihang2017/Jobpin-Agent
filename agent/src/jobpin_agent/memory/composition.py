@@ -83,6 +83,11 @@ def build_memory_backend(
             write-approval seam §1.5).
     Returns: a ``MemoryBackend``.
 
+    Note: this only assembles wiring — it does NOT drive the per-session lifecycle
+    (``manager.initialize_all`` / ``shutdown_all``). That is the caller's job and matters
+    once §1.4 adds real ``extra_providers`` with resources; the §1.3 builtin's init/shutdown
+    are no-ops, so omitting it here is harmless.
+
     中文 —
     参数：
         memory_dir：存放 ORG.md / RECRUITER.md 的目录（由 §1.2 创建/加载）。

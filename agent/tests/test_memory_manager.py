@@ -136,25 +136,19 @@ def test_wedged_provider_does_not_block_turn_or_exit():
 
 
 def test_failure_isolation_one_provider_raises():
-    """A provider raising in prefetch does not block the healthy one.
+    """A raising provider does not block a healthy provider's recall in the SAME manager.
 
-    EN: prefetch_all returns the healthy recall, no exception. 中文：prefetch_all 返回健康召回，无异常。
+    EN —
+    Co-register a raising provider (as builtin) and a healthy external in one manager; the
+    healthy recall must survive the exception (the core failure-isolation property).
+    中文 —
+    在同一 manager 中同时注册一个抛错 provider（作 builtin）与一个健康外部 provider；健康召回必须在异常中存活
+    （失败隔离的核心性质）。
     """
-    bad = FakeProvider(name="bad", raise_on={"prefetch"})
-    good = FakeProvider(name="good", recall="good recall")
     m = MemoryManager()
-    m.add_provider(bad)
-    m.add_provider(good)  # bad is the (only) external; good would be rejected -> use builtin name
-    # bad took the external slot; register good as builtin so both run
-    m2 = MemoryManager()
-    m2.add_provider(FakeProvider(name="builtin"))
-    m2.add_provider(bad)
-    # builtin (empty recall) + bad (raises) -> "" without crashing
-    assert m2.prefetch_all("q") == ""
-    # healthy-only path
-    m3 = MemoryManager()
-    m3.add_provider(good)
-    assert "good recall" in m3.prefetch_all("q")
+    m.add_provider(FakeProvider(name="builtin", raise_on={"prefetch"}))  # raises in prefetch
+    m.add_provider(FakeProvider(name="good", recall="good recall"))      # healthy external
+    assert m.prefetch_all("q") == "good recall"  # healthy recall survives the other's exception
 
 
 def test_second_external_provider_rejected():

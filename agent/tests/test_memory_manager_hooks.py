@@ -48,6 +48,30 @@ def test_after_turn_syncs_last_user_and_assistant():
     assert ext.synced == [("hello", "hi there")]
 
 
+def test_after_turn_picks_final_assistant_across_tool_interleaving():
+    """after_turn skips intermediate tool-call assistant messages and syncs the FINAL answer.
+
+    EN: a turn with USER -> assistant tool_calls (content="") -> TOOL result -> final assistant text;
+        _last_text must pick "here are the devs", not the empty tool-call turn.
+    中文：一个回合 USER -> 带 tool_calls 的 assistant（content=""）-> TOOL 结果 -> 最终 assistant 文本；
+        _last_text 必须选中 "here are the devs"，而非空的工具调用回合。
+    """
+    from jobpin_agent.core.messages import ToolCall, ToolResult
+    ext = FakeProvider(name="ext")
+    m = MemoryManager()
+    m.add_provider(ext)
+    h = MemoryManagerHooks(m)
+    msgs = [
+        Message(Role.USER, content="find devs"),
+        Message(Role.ASSISTANT, tool_calls=[ToolCall("c1", "search", {})]),
+        Message(Role.TOOL, tool_result=ToolResult("c1", "search", "results")),
+        Message(Role.ASSISTANT, content="here are the devs"),
+    ]
+    h.after_turn("s1", msgs)
+    assert m.flush_pending(2.0)
+    assert ext.synced == [("find devs", "here are the devs")]
+
+
 def test_on_pre_compress_aggregates_provider_facts():
     """on_pre_compress aggregates the providers' returned facts.
 

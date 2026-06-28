@@ -202,7 +202,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 - **移植抽象基类 `MemoryProvider`** 的完整契约：核心生命周期 `is_available` / `initialize(session_id, **kwargs)` / `system_prompt_block()` / `prefetch(query, *, session_id)` / `queue_prefetch` / `sync_turn(user, assistant, *, session_id, messages)` / `get_tool_schemas` / `handle_tool_call` / `shutdown`；可选钩子 `on_turn_start` / `on_session_end` / `on_session_switch` / `on_pre_compress` / `on_delegation` / `on_memory_write(action, target, content, metadata)` / `get_config_schema` / `save_config` / `backup_paths`。
 - **移植编排器 `MemoryManager`**：`prefetch_all` / `sync_all` / `queue_prefetch_all`（**单 worker 后台 `ThreadPoolExecutor`，串行保证 turn N 先于 N+1**）、`build_system_prompt`、`handle_tool_call` 路由、`flush_pending` 屏障、`shutdown_all`（含 `_SYNC_DRAIN_TIMEOUT_S` 有界排空，wedged provider 不得阻塞退出）。
 - **`<memory-context>` 围栏注入**：移植 `build_memory_context_block`（把 prefetch 结果包进 `<memory-context>` 围栏 + "这是召回记忆、非新用户输入"的系统提示注记）。
-- **关键放宽**：Hermes 强制"同一时刻仅一个外部 Provider"（`add_provider` 拒绝第二个非 builtin）。HR 需多专用 Provider 并存——**本阶段先按 Hermes 单 Provider 跑通**，把"多 Provider 归并（`CompositeMemoryProvider`）"显式留到 Phase 2（PRD 第 13.1 节简化原则；触发信号 = 引入员工记忆 M4）。本阶段在 Manager 内**预留路由抽象**但不启用归并。
+- **关键放宽**：Hermes 强制"同一时刻仅一个外部 Provider"（`add_provider` 拒绝第二个非 builtin）。HR 需多专用 Provider 并存——**本阶段先按 Hermes 单 Provider 跑通**，把"多 Provider 归并（`CompositeMemoryProvider`）"显式留到 Phase 2（PRD 第 13.1 节简化原则；触发信号 = 引入员工记忆 M4）。本阶段在 Manager 内**预留路由接缝**但不启用归并。（前瞻提示：§1.4 落地两个外部 provider——Candidate + Semantic——需经 `CompositeMemoryProvider`（§3.2）放宽此单外部规则；在 §1.4 前需协调 §1.4 ↔ Phase-2 次序——例如把 Composite 提前，或将 §1.4 的 provider 置于单个 Composite 门面之后。）
 
 `initialize(**kwargs)` 关键字段（接地 GROUNDING）：`agent_context`（"primary"/"subagent"/"cron"/"flush"——**非 primary 应跳过写入**，落实不变量 3）决定子代理写入门禁；`agent_identity` 作审计 actor；`user_id` 进入 RBAC 过滤（见 1.5）。
 
@@ -212,7 +212,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 |---|---|---|
 | 后台串行落库 | 连续两回合 sync（turn N, N+1） | 单 worker `mem-sync` 串行执行，turn N 先于 N+1 落库；主回合不阻塞 |
 | flush 屏障可见 | 回合后调 `flush_pending(timeout)` 再读 | 落库结果在屏障后确定性可见（会话边界 / 测试用） |
-| wedged provider 不阻塞退出 | provider `sync_turn` 模拟阻塞数百秒 | 主回合不被阻塞；`shutdown_all` ≤ `_SYNC_DRAIN_TIMEOUT_S`(5.0s) 完成有界排空（worker 为 daemon） |
+| wedged provider 不阻塞退出 | provider `sync_turn` 模拟阻塞数百秒 | 主回合不被阻塞；`shutdown_all` 经 daemon **监视**线程在 `_SYNC_DRAIN_TIMEOUT_S`(5.0s) 内完成有界排空（注：Python 3.9+ 线程池 worker 本身非 daemon，故仅 `shutdown_all` 有界——永久卡死的任务仍可能在解释器退出时被 join） |
 | 失败隔离 | 某 provider 钩子抛异常 | Manager try/except + `logger.warning` 继续，不阻塞其他 provider 或主回合 |
 | 围栏强制 | prefetch 返回任意内容 | 一律被 `<memory-context>` 围栏包裹 + 系统注记（"NOT new user input ... authoritative reference data"） |
 | 围栏剥离 | provider 误带 `<memory-context>` 标签的内容 | `sanitize_context` 剥离围栏标签 / 注入块 / 系统注记 |
@@ -229,11 +229,11 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 **实现要点（How）**：
 - **串行落库是合规依赖**：单 worker 保证写入有序（turn N 先于 N+1），后续"每步可审计"的因果链依赖此顺序——移植时保留 `max_workers=1` 与命名前缀 `mem-sync`。
 - **失败隔离**：Manager 对每个 provider 的钩子调用都 try/except 包裹，一个 provider 失败不得阻塞其他 provider 或主回合（移植 Hermes 的 `logger.warning` + 继续）。
-- **会话切换语义**：`on_session_switch(new_session_id, parent_session_id, reset, rewound)` 在 `/resume`、`/branch`、`/reset`、压缩续连时触发；Provider 据此刷新 per-session 缓存，确保写入落到正确会话记录——HR 场景下"一个招聘 loop 跨会话续跑"强依赖此语义。本阶段 Manager 内部按 `memory_key` 的 `entity_type` 段预留 provider 路由表，但**不启用归并**（`CompositeMemoryProvider` 留 Phase 2）。
+- **会话切换语义**：`on_session_switch(new_session_id, parent_session_id, reset, rewound)` 在 `/resume`、`/branch`、`/reset`、压缩续连时触发；Provider 据此刷新 per-session 缓存，确保写入落到正确会话记录——HR 场景下"一个招聘 loop 跨会话续跑"强依赖此语义。本阶段预留**单外部 provider 槽位 + Manager 的工具路由接缝**——**而非** entity_type 路由表：实体路由位于未来 `CompositeMemoryProvider`（§3.2）内部，故启用归并时 Manager 保持不变。**不启用归并**（`CompositeMemoryProvider` 留 Phase 2）。
 
 **退出标准（Exit）**：
-- 内置 Provider 经 Manager 完成"prefetch → 回合 → sync → queue_prefetch"闭环；`flush_pending` 后断言落库可见。
-- 注入慢 / wedged provider（模拟阻塞数百秒），主回合不被阻塞，进程退出 ≤ `_SYNC_DRAIN_TIMEOUT_S` 完成排空。
+- Manager 闭合"prefetch → 回合 → sync → queue_prefetch"环，且 `flush_pending` 后落库可见。（策展内置 provider 每回合刻意为惰性——`prefetch`→`""`、`sync_turn`→空操作，因策展记忆为人工编辑、面向模型的写工具在 §1.5——故循环的召回/同步可见性以一个召回 provider 与内置一同演示；内置证明生命周期参与 + 快照入提示。）
+- 注入慢 / wedged provider（模拟阻塞），主回合不被阻塞，`shutdown_all` 经有界排空在 `_SYNC_DRAIN_TIMEOUT_S` 内返回（daemon 监视线程为该调用兜底；非 daemon 的线程池 worker 仍可能在解释器退出时被 join）。
 - `<memory-context>` 围栏：prefetch 返回内容一律被围栏包裹并带系统注记；provider 误带围栏标签时被 `sanitize_context` 剥离。
 
 ---

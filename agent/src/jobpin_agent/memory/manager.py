@@ -49,9 +49,13 @@ from .provider import MemoryProvider
 logger = logging.getLogger(__name__)
 
 # How long shutdown_all() waits for in-flight background sync/prefetch work to
-# drain before abandoning it. A wedged provider must never block teardown — the
-# worker is daemon, so anything still running past this window dies with the
-# interpreter. (Ported verbatim from Hermes.)
+# drain before returning. A daemon WATCHER thread bounds the wait, so
+# shutdown_all() itself always returns within this window even if a provider is
+# wedged. NOTE (corrected vs Hermes's "daemon worker" comment): on Python 3.9+
+# the ThreadPoolExecutor pool worker is NON-daemon (registered for an atexit
+# join), so a forever-wedged task can still be joined at *interpreter* exit —
+# only shutdown_all() is bounded, not interpreter teardown. A hard guarantee
+# would need a custom daemon thread factory (out of scope for §1.3).
 _SYNC_DRAIN_TIMEOUT_S = 5.0
 
 # Reserved core tool names a provider must never shadow (built-ins always win).
@@ -659,8 +663,10 @@ class MemoryManager:
     def shutdown_all(self) -> None:
         """Drain the background executor (bounded) then shut down providers (ported).
 
-        EN: Returns: None. A wedged provider cannot hang teardown (daemon worker + bounded drain).
-        中文：返回：None。被卡住的 provider 无法拖住拆解（守护工作线程 + 有界排空）。
+        EN: Returns: None. A wedged provider cannot hang this CALL (daemon watcher + bounded
+            drain); interpreter exit may still join the non-daemon pool worker (see `_SYNC_DRAIN_TIMEOUT_S`).
+        中文：返回：None。被卡住的 provider 无法拖住此调用（守护监视线程 + 有界排空）；解释器退出仍可能 join
+            非守护的线程池 worker（见 `_SYNC_DRAIN_TIMEOUT_S`）。
         """
         self._drain_sync_executor()
         for provider in reversed(self._providers):
