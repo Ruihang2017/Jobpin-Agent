@@ -44,6 +44,15 @@ python -m pytest
 See `agent/README.md`. Hermes is ported **into** `agent/`, never depended on at
 runtime; ported files keep their MIT notice in `agent/THIRD_PARTY_NOTICES.md`.
 
+## How we build (working convention)
+
+Development runs an automated single-agent Superpowers cycle, **one Production-Plan point at a
+time** (`brainstorm → spec → plan → execute → test → triple-review → document`). A standing rule:
+**before starting any point or changing a feature, reflect against the _whole_ PRD + Production
+Plan** — scope and sequencing come from the full plan (the §1.x dependency order, the Key Invariants,
+and the PRD §13.1 deferrals), not from a single paragraph. The convention and the lesson behind it
+live in [`CLAUDE.md`](CLAUDE.md) §5.
+
 ## Working with the Hermes submodule
 
 ```bash

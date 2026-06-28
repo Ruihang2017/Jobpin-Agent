@@ -194,6 +194,17 @@ point the full cycle is:
 
 with specs in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/`.
 
+**Context-first — reflect against the WHOLE PRD + Production Plan before each point or feature
+change (required).** Before brainstorming a new point, or changing any existing feature, re-read the
+relevant PRD sections (`site/plan/01-PRD-EN.md`) **and the entire Production Plan**
+(`site/plan/02-Production-Plan-EN.md`), and decide scope by where the work sits in the *whole* plan —
+not by its own paragraph. Specifically weigh: the **§1.x dependency order** (what the next points
+need), the **Key Invariants** (Plan §1.0) and compliance constraints (PRD §9.5/§11.5), and the
+**deferred items + their trigger signals** (PRD §13.1) so you neither build ahead nor invert the
+order. *Lesson that motivated this rule:* the §1.3 memory-write-tool scope **flipped** once the full
+PRD + Plan were read — the governed write-gate is literally the next point (§1.5), so a model-facing
+write tool belongs there, not in §1.3. Reading one section in isolation would have got it backwards.
+
 **Automation (sanctioned by the repo owner — overrides the skills' intermediate HITL gates):** once
 the **user has approved the design** for a point, **proceed automatically and without pausing**
 through: write spec → self-review spec → write plan → self-review plan → execute (single-agent,

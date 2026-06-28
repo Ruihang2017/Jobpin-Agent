@@ -8,6 +8,12 @@ Authoritative product docs: **PRD** `../site/plan/01-PRD-EN.md` and **Production
 `../site/plan/02-Production-Plan-EN.md` (中文: `01-PRD.md` / `02-Production-Plan.md`). The
 engineering quality bar is `../TEXTBOOK_SPEC.md` — **read it before porting anything.**
 
+**Reflect against the whole plan before each point or feature change.** Re-read the relevant PRD
+sections **and the entire Production Plan** before starting a point or altering a feature — a point's
+scope and sequencing come from the *full* plan (the §1.x dependency order, the Plan §1.0 Key
+Invariants, the PRD §13.1 deferrals + their trigger signals), not from one paragraph read in
+isolation. See root `../CLAUDE.md` §5 ("Context-first") for the rule and the §1.3 lesson behind it.
+
 ---
 
 ## What we are building
