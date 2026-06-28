@@ -62,6 +62,18 @@ shadow guard, schema normalisation, and the fence regexes are unchanged. The `Bu
 (`memory/providers/builtin.py`) is new code implementing the ported ABC over the §1.2 store. The MIT
 copyright + licence text below is retained for these copied portions.
 
+## §1.4 Vector store + entity providers — provenance (NEW CODE; attaches to the §1.3 ported contract)
+
+§1.4 (`memory/vector/*`, `memory/structured.py`, `memory/embedding.py`, `memory/benchmark.py`,
+`memory/providers/{retrieval_base,semantic,candidate,composite}.py`) is **new, design-derived code** —
+the large-volume retrieval layer (vector store + structured store + entity providers + re-embed
+migration + benchmark). It is **not** a port of a Hermes file; it implements the §1.3 ported
+`MemoryProvider` contract and reuses the §1.3 `MemoryManager`/fence. The minimal `CompositeMemoryProvider`
+realises, in trimmed form, the design of Hermes-derived Plan §3.2. Heavy backends and governance stay
+behind injected seams: the real vector backend (sqlite-vec/LanceDB, §1.12), the real embedder
+(BGE/OpenAI, config), the governance write gate (§1.5), and RBAC (§1.5). No new third-party dependency
+(stdlib only). No substantial Hermes code is copied at §1.4.
+
 ---
 
 MIT License
