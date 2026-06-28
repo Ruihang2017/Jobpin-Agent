@@ -44,6 +44,24 @@ budget, atomic temp→fsync→`os.replace` write under a `.lock`, drift detectio
 all-or-nothing, the lean success response — are unchanged. The MIT copyright + licence text below is
 retained for these copied portions.
 
+## §1.3 Memory port ② — provenance (PORTED CODE — MIT, see notice below)
+
+| Jobpin file | Hermes source | Strategy |
+|---|---|---|
+| `src/jobpin_agent/memory/provider.py` | `agent/memory_provider.py::MemoryProvider` | **Port** (full contract) |
+| `src/jobpin_agent/memory/manager.py` | `agent/memory_manager.py::{MemoryManager, normalize_tool_schema, _SYNC_DRAIN_TIMEOUT_S}` | **Port** (method-by-method) |
+| `src/jobpin_agent/memory/fence.py` | `agent/memory_manager.py::{sanitize_context, build_memory_context_block, _FENCE_*}` | **Port** (+ `build_memory_context_inner` adaptation) |
+
+Adaptations (the §1.3 trims): `_strip_skill_scaffolding` is a pass-through (no /skill layer); local
+`tool_error` (was `tools.registry.tool_error`); local `_CORE_TOOL_NAMES` (was `toolsets._HERMES_CORE_TOOLS`);
+`initialize_all` injects no `hermes_home`; `build_memory_context_inner` is added so the §1.1 loop owns the
+outer `<memory-context>` tags. NOT ported here (deferred): `StreamingContextScrubber` (→§1.6),
+`inject_memory_provider_tools` / `memory_provider_tools_enabled` (→§1.5). The single-worker serial
+executor, `flush_pending` barrier, bounded drain, failure-isolation try/except, single-external rule,
+shadow guard, schema normalisation, and the fence regexes are unchanged. The `BuiltinMemoryProvider`
+(`memory/providers/builtin.py`) is new code implementing the ported ABC over the §1.2 store. The MIT
+copyright + licence text below is retained for these copied portions.
+
 ---
 
 MIT License
