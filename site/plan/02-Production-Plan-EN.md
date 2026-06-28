@@ -245,7 +245,8 @@ If `consent_id` is missing (when `source_type` requires consent) → the 1.5 `co
 **Scope**:
 - **Selection and wrapping of an embedded local vector store**: one of sqlite-vec / LanceDB / Chroma (local mode), chosen by the 1.12 spike, wrapped behind `SemanticRAGProvider`; **no cloud database**.
 - **`CandidateMemoryProvider` / `EmployeeMemoryProvider` / `OrgMemoryProvider` / `SemanticRAGProvider`**: this phase first lands `Candidate` + `Semantic` (needed for M1); Employee is left for Phase 2, and Org reuses the file-backed store of 1.2.
-- **Local structured store**: candidates' / employees' structured fields (skills / years / location / work rights / consent status) land in a local relational store; the vector store holds only the semantic vectors + references pointing back to the structured rows.
+- **Minimal `CompositeMemoryProvider` (brought forward from §3.2)**: landing `Candidate` + `Semantic` makes **≥2 external providers coexist** — the trigger §3.2 tied to Phase 2 already fires here. Rather than relax the Manager's single-external rule, this phase introduces a **minimal** Composite (registered as the **sole** external provider; `add_provider` unchanged) that holds the two: broadcast `prefetch` → split on `ENTRY_DELIMITER` + `dict.fromkeys` dedup → budget-truncate; **unicast** `sync` to the owning sub-provider; fan out the hooks; reverse-order `shutdown`; reusing the §1.3 single-worker / `flush_pending` / bounded-drain invariants. The **full** Composite — the Employee sub-provider, the `entity_type` + query-intent routing table, the merge-consistency matrix, and `backup_paths` aggregation — remains **Phase 2 §3.2**.
+- **Local structured store**: candidates' / employees' structured fields (skills / years / location / work rights / consent status) land in a local relational store; the vector store holds only the semantic vectors + references pointing back to the structured rows. (§1.4 lands a **minimal** candidate structured store scoped to retrieval/filter needs; the full canonical data model is §1.8.)
 - **Pinned embedding-model version**: the embedding model (e.g. the BGE family) has its **version number pinned and recorded alongside each vector**; switching models / dimensions makes the vector space incompatible and must go through a **re-embed migration** — silent mixing is forbidden.
 
 **Sketch of a vector-store record's fields (interface TBD — to be defined in this phase)**:
@@ -1374,6 +1375,8 @@ PathStep    { order, cap_id, target_level, res_id, kind, blocking_prereq_done∈
 ### 3.2 Workstream: Enable `CompositeMemoryProvider` (multi-Provider merging)
 
 > Deliberately deferred in Phase 0 and triggered for enablement in this phase — the trigger signal is precisely that "introducing employee memory" makes the number of coexisting specialised Providers ≥ 2.
+>
+> **Update (sequencing reconciliation):** §1.4 already lands two coexisting retrieval providers (Candidate + Semantic for M1), so a **minimal** Composite — sole-external facade, broadcast-`prefetch`/merge + unicast-`sync` over those two — is introduced early at **§1.4**. This §3.2 workstream enables the **full** version: the **Employee** sub-provider, the `entity_type` + query-intent **routing table**, the **merge-consistency matrix** hardening, and `backup_paths` aggregation across all four sub-providers.
 
 **What (contract)**: Relax the Hermes "only one external Provider at any time" restriction (`MemoryManager.add_provider` originally rejected a second non-builtin), and implement a composite Provider that **routes by entity / query and merges** multiple specialised Providers (Candidate / Employee / Org / Semantic).
 

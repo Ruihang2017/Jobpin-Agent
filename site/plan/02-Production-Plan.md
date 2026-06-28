@@ -245,7 +245,8 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 **范围（Scope）**：
 - **嵌入式本地向量库选型与封装**：sqlite-vec / LanceDB / Chroma（本地模式）三选一（由 1.12 spike 定），封装在 `SemanticRAGProvider` 之后；**无云数据库**。
 - **`CandidateMemoryProvider` / `EmployeeMemoryProvider` / `OrgMemoryProvider` / `SemanticRAGProvider`**：本阶段先落地 `Candidate` + `Semantic` 两个（M1 所需）；Employee 留到 Phase 2，Org 复用 1.2 的文件型 store。
-- **本地结构化库**：候选人 / 员工的结构化字段（技能 / 年限 / 地点 / 工作权利 / 同意状态）落本地关系库；向量库只存语义向量 + 指回结构化行的引用。
+- **最小 `CompositeMemoryProvider`（从 §3.2 提前）**：落地 `Candidate` + `Semantic` 使**并存的外部 provider ≥ 2**——§3.2 系于 Phase 2 的触发信号在此已触发。本阶段不放宽 Manager 的单外部规则，而是引入一个**最小** Composite（注册为**唯一**外部 provider；`add_provider` 不变），容纳两者：广播 `prefetch` → 按 `ENTRY_DELIMITER` 切分 + `dict.fromkeys` 去重 → 按预算截断；`sync` **单播**到归属子 provider；钩子扇出；逆序 `shutdown`；复用 §1.3 单 worker / `flush_pending` / 有界排空不变量。**完整** Composite——Employee 子 provider、`entity_type` + 查询意图路由表、归并一致性矩阵、`backup_paths` 聚合——仍留 **Phase 2 §3.2**。
+- **本地结构化库**：候选人 / 员工的结构化字段（技能 / 年限 / 地点 / 工作权利 / 同意状态）落本地关系库；向量库只存语义向量 + 指回结构化行的引用。（§1.4 落地一个**最小**候选人结构化库，仅限检索/过滤所需；完整规范数据模型为 §1.8。）
 - **嵌入模型版本固定**：嵌入模型（如 BGE 系列）**固定版本号并随每条向量一同记录**；切换模型 / 维度会使向量空间不兼容，必须走**重嵌入（re-embed）迁移**，禁止静默混用。
 
 **向量记录字段草图（接口待定，本阶段定义）**：
@@ -1374,6 +1375,8 @@ PathStep    { order, cap_id, target_level, res_id, kind, blocking_prereq_done∈
 ### 3.2 工作流：启用 `CompositeMemoryProvider`（多 Provider 归并）
 
 > Phase 0 刻意推迟、本阶段触发启用——触发信号正是"员工记忆引入"使并存的专用 Provider ≥ 2。
+>
+> **更新（次序协调）：** §1.4 已落地两个并存的检索 provider（M1 所需的 Candidate + Semantic），故一个**最小** Composite——唯一外部门面、对这两者广播 `prefetch`/归并 + 单播 `sync`——已在 **§1.4** 提前引入。本 §3.2 工作流启用**完整**版本：**Employee** 子 provider、`entity_type` + 查询意图**路由表**、**归并一致性矩阵**强化，以及四个子 provider 的 `backup_paths` 聚合。
 
 **What（契约）**：放宽 Hermes "同一时刻仅一个外部 Provider"的限制（`MemoryManager.add_provider` 原拒绝第二个非 builtin），实现一个**按实体 / 查询路由并归并**多个专用 Provider（Candidate / Employee / Org / Semantic）的组合 Provider。
 
