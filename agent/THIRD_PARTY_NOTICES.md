@@ -31,6 +31,19 @@ No substantial Hermes code is copied at §1.1 (rewrite). Code-porting of the mem
 (`memory_tool.py` / `memory_provider.py` / `memory_manager.py`, `threat_patterns.py`) begins at §1.2,
 at which point the MIT copyright + licence text below applies to the copied portions.
 
+## §1.2 Memory port — provenance (PORTED CODE — MIT, see notice below)
+
+| Jobpin file | Hermes source | Strategy |
+|---|---|---|
+| `src/jobpin_agent/memory/store.py` | `tools/memory_tool.py::MemoryStore` (+ `ENTRY_DELIMITER`, `_drift_error`, helpers) | **Port** (algorithms verbatim) |
+
+Adaptations: targets renamed `memory→org` / `user→recruiter` (files `ORG.md` / `RECRUITER.md`); the
+injection scan is injected (`scan_entry`; the real `threat_patterns` is ported at §1.6); char budgets
+recalibrated; the governance header is deferred to §1.5. The core algorithms — dedup, fixed-length
+budget, atomic temp→fsync→`os.replace` write under a `.lock`, drift detection, `apply_batch`
+all-or-nothing, the lean success response — are unchanged. The MIT copyright + licence text below is
+retained for these copied portions.
+
 ---
 
 MIT License
