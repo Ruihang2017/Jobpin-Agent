@@ -308,19 +308,26 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   triple-reviewed (port confirmed **faithful**); security review (`docs/security/p0-1.2-…`) +
   bilingual devlog written. **Not merged.**
 - Phase 0 **§1.3 `MemoryProvider` + `MemoryManager` + fence + seam: complete** on
-  `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`); **70 tests pass, 1 skipped**;
-  triple-reviewed (all three **YES**, port **faithful**, "no `agent_loop.py` change" git-verified);
-  Plan corrected (EN+中文) per the review; security review (`docs/security/p0-1.3-…`) + bilingual
-  devlog written. **Not merged.** The agent's system prompt now carries Org/Recruiter memory through
-  the seam with no loop change; the governed model-facing **write tool is deferred to §1.5**.
+  `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`); triple-reviewed (all three
+  **YES**, port **faithful**, "no `agent_loop.py` change" git-verified); Plan corrected (EN+中文);
+  security review + bilingual devlog. **Not merged.** The governed model-facing **write tool is
+  deferred to §1.5**.
+- Phase 0 **§1.4 vector store + Candidate/Semantic providers (+ minimal Composite): complete** on
+  `phase0/1.4-vector-entity-providers` (off `phase0/1.3-…`); **one big cycle** (owner opted in), built
+  in independently-tested layers; **104 tests pass, 1 skipped**; triple-reviewed (all three **YES**;
+  two MAJORs fixed — Semantic filter-before-NN + the rerank seam); Plan corrected (EN+中文: minimal
+  Composite brought forward from §3.2); security review (`docs/security/p0-1.4-…`) + bilingual devlog.
+  **Not merged.** Dependency-light (stdlib vector store, hashing embedder); heavy backends + governance
+  behind seams (real backend → §1.12, embedder → config, write-gate/RBAC → §1.5, threat scan → §1.6).
 
-**Branch:** `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`, off `main`). Merge
-order: **§1.2 → §1.3**.
+**Branch:** `phase0/1.4-vector-entity-providers` (off `phase0/1.3-…`, off `phase0/1.2-…`, off `main`).
+Merge order: **§1.2 → §1.3 → §1.4**.
 
 **Immediate next steps:**
-1. **Land §1.2 then §1.3:** owner merges `phase0/1.2-memory-store` → `main`, then
-   `phase0/1.3-memory-provider-manager` → `main` (kept gate; auto-deploys Netlify).
-2. **Next point — §1.4 or §1.5:** §1.4 = embedded vector store + Candidate/Semantic providers behind
-   the §1.3 `MemoryProvider` interface (mind the §1.4 ↔ Phase-2 single-external reconciliation flagged
-   in Plan §1.3); §1.5 = HR memory governance — the write-gate **and** the model-facing `memory` write
-   tool, born governed. Same per-point cycle (§5).
+1. **Land §1.2 → §1.3 → §1.4:** owner merges the chain into `main` in order (kept gate; auto-deploys
+   Netlify).
+2. **Next point — §1.5 (HR memory governance):** the linchpin compliance point — the write-gate (reject
+   writes lacking provenance/consent labels), RBAC `scope_filter`, the erasure pipeline over the §1.4
+   cascade mechanism, and the model-facing `memory` **write tool** born governed. The §1.4 seams
+   (`write_gate`/`scope_filter`) are already wired for it. Same per-point cycle (§5). (§1.6 = injection
+   defence behind the `scan_entry` seam; §1.12 = vector-backend spike — both also teed up by §1.4.)
