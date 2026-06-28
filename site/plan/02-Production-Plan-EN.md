@@ -56,7 +56,7 @@ Each **Phase** unfolds in a uniform structure, at a granularity aligned with a s
 >
 > **Entry Criteria**: The PRD has been reviewed; of the open items in Section 14 of the PRD, at least the three items "pilot state", "local hardware baseline", and "whether PII may leave the jurisdiction" have preliminary answers (these determine the local-model tiers and which laws apply for M5).
 >
-> **Out of Scope (This Phase)**: Any real business decisions for M1–M5; multi-tenant isolation; full event sourcing; multi-provider merging via `CompositeMemoryProvider` (deferred to Phase 2); a heavy orchestration engine (Temporal/LangGraph, deferred until Layer B genuinely needs one); a cloud backend.
+> **Out of Scope (This Phase)**: Any real business decisions for M1–M5; multi-tenant isolation; full event sourcing; multi-provider **merging/routing** via the **full** `CompositeMemoryProvider` (deferred to Phase 2 §3.2 — note: §1.4 introduces a *minimal* Composite facade so its two retrieval providers coexist under the unchanged single-external rule; only the merging/routing Composite is deferred); a heavy orchestration engine (Temporal/LangGraph, deferred until Layer B genuinely needs one); a cloud backend.
 
 ### 1.0 Phase Overview (What this phase delivers)
 

@@ -56,7 +56,7 @@
 >
 > **进入条件（Entry）**：PRD 已评审；PRD 第 14 节待决项中至少"试点州""本地硬件基线""是否允许 PII 出境"三项有初步答复（决定本地模型分档与 M5 适用法）。
 >
-> **本阶段不做（Out of scope this phase）**：任何 M1–M5 的真实业务决策；多租户隔离；全量事件溯源；`CompositeMemoryProvider` 多 Provider 归并（留到 Phase 2）；重型编排引擎（Temporal/LangGraph，留到 B 层确有需要时）；云后端。
+> **本阶段不做（Out of scope this phase）**：任何 M1–M5 的真实业务决策；多租户隔离；全量事件溯源；**完整** `CompositeMemoryProvider` 的多 Provider **归并/路由**（留到 Phase 2 §3.2——注：§1.4 引入一个*最小* Composite 门面，使其两个检索 provider 在不变的单外部规则下并存；仅归并/路由 Composite 被推迟）；重型编排引擎（Temporal/LangGraph，留到 B 层确有需要时）；云后端。
 
 ### 1.0 阶段总览（What this phase delivers）
 

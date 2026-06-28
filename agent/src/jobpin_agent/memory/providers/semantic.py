@@ -14,10 +14,11 @@ plugs in behind the injected ``EmbedFn``; §1.4 ships the lexical hashing defaul
 """
 from __future__ import annotations
 
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..embedding import EmbedFn
 from ..vector.record import VectorRecord
+from ..vector.rerank import RerankFn
 from ..vector.store import VectorStore
 from .retrieval_base import Hit, RetrievalProvider
 
@@ -44,18 +45,26 @@ class SemanticRAGProvider(RetrievalProvider):
         embed_model: str = "hash",
         embed_version: str = "hash@256",
         scope_filter: Optional[Callable[[str], bool]] = None,
+        write_gate: Optional[Callable[[str, str, str], Optional[str]]] = None,
+        scan_entry: Optional[Callable[[str], Optional[str]]] = None,
+        rerank: Optional[RerankFn] = None,
         k: int = 4,
     ) -> None:
         """Construct the provider.
 
-        EN: Args: see the class docstring. 中文：参数：见类文档。
+        EN: Args: see the class docstring; write_gate (ingest approval, default pass-through — §1.5);
+            scan_entry (threat scan on ingested text, default pass-through — §1.6); rerank (default identity).
+        中文：参数：见类文档；write_gate（ingest 审批，默认直通——§1.5）；scan_entry（ingest 文本威胁扫描，默认直通
+            ——§1.6）；rerank（默认恒等）。
         """
-        super().__init__()
+        super().__init__(rerank=rerank)
         self._store = vector_store
         self._embed = embed_fn
         self._embed_model = embed_model
         self._embed_version = embed_version
         self._scope = scope_filter or (lambda _mk: True)
+        self._gate = write_gate
+        self._scan = scan_entry
         self._k = k
 
     @property
@@ -66,23 +75,35 @@ class SemanticRAGProvider(RetrievalProvider):
         """
         return "semantic"
 
-    def ingest(self, doc_id: str, text: str, *, memory_key: str, source_ref: str) -> None:
-        """Embed and store one knowledge-base chunk.
+    def ingest(self, doc_id: str, text: str, *, memory_key: str, source_ref: str) -> Dict[str, Any]:
+        """Embed and store one knowledge-base chunk (through the scan + gate seams).
 
-        EN: Args: doc_id (struct_ref); text; memory_key; source_ref (citation pointer). Returns: None.
-        中文：参数：doc_id（struct_ref）；text；memory_key；source_ref（引用指针）。返回：None。
+        EN —
+        Args: doc_id (struct_ref); text; memory_key; source_ref (citation pointer). Returns: a success
+        dict, or ``{"blocked": …}`` if ``scan_entry`` flags the text (§1.6), or a staged dict if
+        ``write_gate`` holds the write (§1.5). Both seams are pass-through by default.
+        中文 —
+        参数：doc_id（struct_ref）；text；memory_key；source_ref（引用指针）。返回：成功字典，或若 ``scan_entry``
+        标记文本（§1.6）则 ``{"blocked": …}``，或若 ``write_gate`` 保留写入（§1.5）则暂存字典。两接缝默认直通。
         """
+        if self._scan is not None:
+            desc = self._scan(text)
+            if desc:
+                return {"success": False, "blocked": desc}
+        if self._gate is not None:
+            held = self._gate("add", "semantic", memory_key)
+            if held:
+                return {"success": False, "staged": True, "message": held}
         self._store.add([VectorRecord(
             memory_key=memory_key, embed_model=self._embed_model, embed_version=self._embed_version,
             struct_ref=doc_id, source_ref=source_ref, text=text, embedding=self._embed(text),
         )])
+        return {"success": True, "ingested": 1}
 
     def _retrieve(self, query: str, session_id: str) -> List[Hit]:
-        """Embed the query, search, and drop hits outside the authorised scope.
+        """Embed the query and search with the scope predicate applied BEFORE the top-k truncation.
 
-        EN: Args: query; session_id. Returns: scoped top-k hits.
-        中文：参数：query；session_id。返回：经范围限定的 top-k 命中。
+        EN: Args: query; session_id. Returns: scoped top-k hits (no retrieve-then-filter leak).
+        中文：参数：query；session_id。返回：经范围限定的 top-k 命中（无先检索后过滤泄漏）。
         """
-        qv = self._embed(query)
-        hits = self._store.search(qv, self._k)
-        return [(rec, score) for rec, score in hits if self._scope(rec.memory_key)]
+        return self._store.search(self._embed(query), self._k, scope=self._scope)

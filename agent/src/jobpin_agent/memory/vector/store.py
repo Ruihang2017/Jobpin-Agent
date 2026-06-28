@@ -24,7 +24,7 @@ import json
 import sqlite3
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
+from typing import Callable, List, Optional, Set, Tuple
 
 from ..embedding import cosine
 from .record import VectorRecord
@@ -69,11 +69,20 @@ class VectorStore(ABC):
         """
 
     @abstractmethod
-    def search(self, query: List[float], k: int, *, key_prefix: Optional[str] = None) -> List[Hit]:
-        """Return the top-``k`` nearest records (optionally restricted to a key prefix).
+    def search(
+        self,
+        query: List[float],
+        k: int,
+        *,
+        key_prefix: Optional[str] = None,
+        scope: Optional[Callable[[str], bool]] = None,
+    ) -> List[Hit]:
+        """Return the top-``k`` nearest records, filtering BEFORE the top-``k`` truncation.
 
-        EN: Args: query (vector); k; key_prefix (pre-filter before NN). Returns: hits, score-desc.
-        中文：参数：query（向量）；k；key_prefix（近邻前预过滤）。返回：按分数降序的命中。
+        EN: Args: query (vector); k; key_prefix (SQL prefix pre-filter); scope (a memory_key
+            predicate applied BEFORE scoring/truncation — the no-leak ordering). Returns: hits, score-desc.
+        中文：参数：query（向量）；k；key_prefix（SQL 前缀预过滤）；scope（在打分/截断**之前**应用的 memory_key 谓词
+            ——无泄漏顺序）。返回：按分数降序的命中。
         """
 
     @abstractmethod
@@ -82,6 +91,14 @@ class VectorStore(ABC):
 
         EN: Returns: the set of embed_versions present (size 1 in steady state).
         中文：返回：磁盘上存在的 embed_version 集合（稳态下大小为 1）。
+        """
+
+    @abstractmethod
+    def all_records(self) -> List[VectorRecord]:
+        """Return every stored record (a bulk scan, used by the re-embed migration).
+
+        EN: Returns: all records (backend-agnostic so re-embed works on any backend).
+        中文：返回：全部记录（后端无关，使重嵌入可在任何后端工作）。
         """
 
 
@@ -174,15 +191,23 @@ class SqliteVectorStore(VectorStore):
         self._conn.commit()
         return cur.rowcount
 
-    def search(self, query: List[float], k: int, *, key_prefix: Optional[str] = None) -> List[Hit]:
-        """Brute-force cosine nearest-neighbour, optionally scoped to a key prefix.
+    def search(
+        self,
+        query: List[float],
+        k: int,
+        *,
+        key_prefix: Optional[str] = None,
+        scope: Optional[Callable[[str], bool]] = None,
+    ) -> List[Hit]:
+        """Brute-force cosine nearest-neighbour, filtering BEFORE the top-k truncation.
 
         EN —
-        Args: query; k; key_prefix (filter BEFORE scoring — the no-leak ordering). Returns: the
-        top-k ``(record, score)`` hits, score-descending (zero-score hits dropped).
+        Args: query; k; key_prefix (SQL prefix pre-filter); scope (a memory_key predicate applied
+        BEFORE scoring/truncation — so an out-of-scope record can never displace an in-scope one from
+        the top-k). Returns: the top-k ``(record, score)`` hits, score-descending (zero-score dropped).
         中文 —
-        参数：query；k；key_prefix（在打分**之前**过滤——无泄漏顺序）。返回：按分数降序的 top-k ``(记录, 分数)``
-        命中（丢弃零分命中）。
+        参数：query；k；key_prefix（SQL 前缀预过滤）；scope（在打分/截断**之前**应用的 memory_key 谓词——使范围外
+        记录绝不会把范围内记录挤出 top-k）。返回：按分数降序的 top-k ``(记录, 分数)`` 命中（丢弃零分）。
         """
         if key_prefix is None:
             rows = self._conn.execute("SELECT * FROM vectors").fetchall()
@@ -194,6 +219,8 @@ class SqliteVectorStore(VectorStore):
         scored: List[Hit] = []
         for row in rows:
             rec = _row_to_record(row)
+            if scope is not None and not scope(rec.memory_key):
+                continue  # filter BEFORE scoring/truncation (no retrieve-then-filter leak)
             score = cosine(query, rec.embedding)
             if score > 0.0:
                 scored.append((rec, score))

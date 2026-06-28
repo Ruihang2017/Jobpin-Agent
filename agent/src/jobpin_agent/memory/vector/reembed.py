@@ -20,7 +20,7 @@ from typing import Optional
 
 from ..embedding import EmbedFn
 from .record import VectorRecord
-from .store import SqliteVectorStore
+from .store import VectorStore
 
 
 @dataclass
@@ -44,8 +44,8 @@ class ReembedResult:
 
 
 def reembed(
-    src_store: SqliteVectorStore,
-    dst_store: SqliteVectorStore,
+    src_store: VectorStore,
+    dst_store: VectorStore,
     new_embed_fn: EmbedFn,
     new_version: str,
     *,
@@ -57,9 +57,14 @@ def reembed(
     EN —
     Skips records already in ``dst_store`` (resume). With ``limit`` set, migrates at most that many
     this call (used to simulate an interrupt). When the destination holds every source record, it is
-    validated (count + a sample round-trip). The caller switches to ``dst_store`` once ``complete``.
-    Args: src_store; dst_store; new_embed_fn; new_version; new_embed_model; limit.
-    Returns: a ``ReembedResult``.
+    validated (every source ``vector_id`` present in the destination + a single pinned ``new_version``).
+    Note on the deliverable wording: drift is *detected* by the store's ``add`` guard (it rejects a
+    foreign version), and the *switch* is the caller's (swap to ``dst_store`` once ``complete``); this
+    function does the re-embed + validate between them. Args: src_store; dst_store; new_embed_fn;
+    new_version; new_embed_model; limit. Returns: a ``ReembedResult``.
+
+    中文补充：漂移由存储 ``add`` 守卫*检测*（拒绝异版本），*切换*由调用方负责（``complete`` 后切到 ``dst_store``）；
+    本函数负责其间的重嵌入 + 校验。
 
     中文 —
     跳过已在 ``dst_store`` 中的记录（续传）。设 ``limit`` 时本次最多迁移这么多（用于模拟中断）。当目标含全部源记录时
@@ -89,16 +94,20 @@ def reembed(
 
 
 def _validate(src_store, dst_store, new_embed_fn, new_version) -> bool:
-    """Validate a completed migration: count match, single new version, and a sample round-trip.
+    """Validate a completed migration: every source id is present and the version is pinned.
 
-    EN: Args: src_store; dst_store; new_embed_fn; new_version. Returns: True if consistent.
-    中文：参数：见英文。返回：一致则 True。
+    EN —
+    Checks the destination pins exactly ``new_version`` and contains every source ``vector_id`` (id
+    existence, not a cosine self-match — a record with empty/non-tokenisable text embeds to a zero
+    vector, which a cosine round-trip would wrongly report as missing). Args: src_store; dst_store;
+    new_embed_fn (unused; kept for signature stability); new_version. Returns: True if consistent.
+
+    中文 —
+    检查目标恰好固定 ``new_version`` 且包含每个源 ``vector_id``（按 id 存在性，而非余弦自匹配——文本为空/不可分词的
+    记录嵌入为零向量，余弦往返会误报其缺失）。参数：见英文。返回：一致则 True。
     """
     if dst_store.current_version() != {new_version}:
         return False
-    src_records = src_store.all_records()
-    if len(src_records) != len(dst_store.all_records()):
-        return False
-    sample = src_records[0]
-    hits = dst_store.search(new_embed_fn(sample.text), k=1, key_prefix=sample.memory_key)
-    return bool(hits)
+    src_ids = {r.vector_id for r in src_store.all_records()}
+    dst_ids = {r.vector_id for r in dst_store.all_records()}
+    return src_ids == dst_ids

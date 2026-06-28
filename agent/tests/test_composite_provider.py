@@ -16,10 +16,11 @@ class FakeSub:
     中文 — 返回固定召回；记录 sync；经共享列表记录其 shutdown 顺序。
     """
 
-    def __init__(self, name, entity_type, recall="", order_log=None):
-        """Args: name; entity_type; recall; order_log (shared list). 中文：参数：见英文。"""
+    def __init__(self, name, entity_type, recall="", order_log=None, raise_prefetch=False):
+        """Args: name; entity_type; recall; order_log (shared list); raise_prefetch. 中文：参数：见英文。"""
         self._name, self.entity_type, self._recall = name, entity_type, recall
         self._order = order_log
+        self._raise_prefetch = raise_prefetch
         self.synced = []
 
     @property
@@ -39,7 +40,9 @@ class FakeSub:
         return f"[{self._name}]"
 
     def prefetch(self, query, *, session_id=""):
-        """EN: the fixed recall. 中文：固定召回。"""
+        """EN: the fixed recall (or raises if configured). 中文：固定召回（若配置则抛错）。"""
+        if self._raise_prefetch:
+            raise RuntimeError("sub-provider boom")
         return self._recall
 
     def queue_prefetch(self, query, *, session_id=""):
@@ -132,6 +135,17 @@ def test_sync_unicast_vs_fanout():
     assert a.synced == [("u2", "a2")] and b.synced == [("u", "a"), ("u2", "a2")]
     c.sync_turn("u3", "a3", agent_context="subagent")  # skipped
     assert a.synced == [("u2", "a2")]
+
+
+def test_prefetch_failure_isolation():
+    """A sub-provider raising in prefetch does not block the healthy one's recall.
+
+    EN: bad raises, good returns "good recall" -> merged == "good recall". 中文：bad 抛错，good 返回 -> 合并为 "good recall"。
+    """
+    bad = FakeSub("semantic", "semantic", raise_prefetch=True)
+    good = FakeSub("candidate", "candidate", recall="good recall")
+    c = CompositeMemoryProvider([bad, good])
+    assert c.prefetch("q") == "good recall"
 
 
 def test_shutdown_reverse_order_and_blocks():

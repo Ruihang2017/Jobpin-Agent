@@ -20,29 +20,31 @@ from typing import Dict, List, Optional, Tuple
 
 from ..provider import MemoryProvider
 from ..store import ENTRY_DELIMITER
-from ..vector.record import VectorRecord
-
-Hit = Tuple[VectorRecord, float]
+from ..vector.rerank import RerankFn, identity_rerank
+from ..vector.store import Hit
 
 
 class RetrievalProvider(MemoryProvider):
-    """Base for vector-retrieval providers (caches + renders; subclass implements ``_retrieve``).
+    """Base for vector-retrieval providers (caches + reranks + renders; subclass implements ``_retrieve``).
 
     EN —
     Implements the §1.3 ``MemoryProvider`` lifecycle for retrieval: ``prefetch`` (cache-or-compute),
-    ``queue_prefetch`` (warm the cache), and a citation renderer. ``name`` stays abstract.
+    ``queue_prefetch`` (warm the cache), an injected ``rerank`` step (default identity), and a citation
+    renderer. ``name`` stays abstract.
 
     中文 —
-    为检索实现 §1.3 ``MemoryProvider`` 生命周期：``prefetch``（缓存或计算）、``queue_prefetch``（预热缓存）与引用渲染。
-    ``name`` 仍为抽象。
+    为检索实现 §1.3 ``MemoryProvider`` 生命周期：``prefetch``（缓存或计算）、``queue_prefetch``（预热缓存）、注入的
+    ``rerank`` 步骤（默认恒等）与引用渲染。``name`` 仍为抽象。
     """
 
-    def __init__(self) -> None:
-        """Initialise the per-(query,session) recall cache.
+    def __init__(self, *, rerank: Optional[RerankFn] = None) -> None:
+        """Initialise the per-(query,session) recall cache and the rerank seam.
 
-        EN: Returns: None. 中文：返回：None。
+        EN: Args: rerank (default ``identity_rerank`` — keep cosine order). Returns: None.
+        中文：参数：rerank（默认 ``identity_rerank``——保持余弦顺序）。返回：None。
         """
         self._cache: Dict[Tuple[str, str], str] = {}
+        self._rerank: RerankFn = rerank or identity_rerank
 
     def is_available(self) -> bool:
         """Local retrieval is always available.
@@ -101,7 +103,7 @@ class RetrievalProvider(MemoryProvider):
         key = (query, session_id)
         if key in self._cache:
             return self._cache[key]
-        result = self._render(self._retrieve(query, session_id))
+        result = self._render(self._rerank(query, self._retrieve(query, session_id)))
         self._cache[key] = result
         return result
 
@@ -111,4 +113,4 @@ class RetrievalProvider(MemoryProvider):
         EN: Args: query; session_id. Returns: None.
         中文：参数：query；session_id。返回：None。
         """
-        self._cache[(query, session_id)] = self._render(self._retrieve(query, session_id))
+        self._cache[(query, session_id)] = self._render(self._rerank(query, self._retrieve(query, session_id)))

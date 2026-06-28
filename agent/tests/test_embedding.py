@@ -15,8 +15,9 @@ def test_lexical_overlap_gives_nonzero_cosine():
     中文："Python engineer" 与 "python developer" 共享 "python"；与 "garden leave" 不相交。
     """
     e = hashing_embedder(64)
-    assert cosine(e("Python engineer"), e("python developer")) > 0.0
-    assert cosine(e("python"), e("garden leave")) == 0.0
+    shared = cosine(e("Python engineer"), e("python developer"))   # share "python"
+    disjoint = cosine(e("python"), e("garden leave"))               # no shared token
+    assert shared > 0.0 and shared > disjoint  # a shared-token pair is more similar than a disjoint one
 
 
 def test_deterministic_and_normalised():

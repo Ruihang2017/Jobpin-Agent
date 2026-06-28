@@ -86,3 +86,34 @@ def test_drift_guard_rejects_foreign_version():
     )
     with pytest.raises(ValueError):
         s.add([foreign])
+
+
+def test_empty_store_multi_version_pin_rejected():
+    """Pinning an empty store with a batch that mixes versions is rejected.
+
+    EN: a first batch containing two embed_versions -> ValueError (can't pin). 中文：首批含两个 embed_version -> ValueError。
+    """
+    s = SqliteVectorStore()
+    mixed = [
+        _rec("acme:apac:candidate:c1", "c1#0", "python"),
+        VectorRecord("acme:apac:candidate:c2", "hash", "hash@128", "c2", "c2#0", "go", hashing_embedder(128)("go")),
+    ]
+    with pytest.raises(ValueError):
+        s.add(mixed)
+
+
+def test_search_zero_score_and_k_gt_corpus():
+    """A zero-similarity query returns nothing; k>corpus returns all matches.
+
+    EN —
+    A zero query vector scores 0 against everything (dropped) -> []; this tests the empty-result path
+    deterministically (a "no shared words" text query can still collide in the hashing embedder, so we
+    use an explicit zero vector). k=10 over 1 record -> 1 hit.
+    中文 —
+    零查询向量对一切打 0 分（被丢弃）-> []；以此确定性地测试空结果路径（“无共同词”的文本查询在哈希嵌入器中仍可能
+    碰撞，故用显式零向量）。k=10 over 1 条 -> 1 命中。
+    """
+    s = SqliteVectorStore()
+    s.add([_rec("acme:apac:candidate:c1", "c1#0", "python developer")])
+    assert s.search([0.0] * 64, k=4) == []
+    assert len(s.search(E("python"), k=10)) == 1

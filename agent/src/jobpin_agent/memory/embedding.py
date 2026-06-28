@@ -49,6 +49,8 @@ def cosine(a: List[float], b: List[float]) -> float:
     EN: Args: a, b (same length). Returns: dot(a,b) / (|a||b|), or 0.0 if a norm is 0.
     中文：参数：a、b（等长）。返回：dot(a,b) / (|a||b|)，任一模为 0 则返回 0.0。
     """
+    if len(a) != len(b):
+        raise ValueError(f"cosine: vector length mismatch {len(a)} != {len(b)} (embedder/store dim drift)")
     dot = sum(x * y for x, y in zip(a, b))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))

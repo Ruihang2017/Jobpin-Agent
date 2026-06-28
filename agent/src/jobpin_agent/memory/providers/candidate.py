@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from ..embedding import EmbedFn
 from ..structured import CandidateRow, CandidateStructuredStore
 from ..vector.record import VectorRecord
+from ..vector.rerank import RerankFn
 from ..vector.store import VectorStore
 from .retrieval_base import Hit, RetrievalProvider
 
@@ -51,13 +52,18 @@ class CandidateMemoryProvider(RetrievalProvider):
         embed_version: str = "hash@256",
         scope_filter: Optional[Callable[[str], bool]] = None,
         write_gate: Optional[Callable[[str, str, str], Optional[str]]] = None,
+        scan_entry: Optional[Callable[[str], Optional[str]]] = None,
+        rerank: Optional[RerankFn] = None,
         k: int = 4,
     ) -> None:
         """Construct the provider.
 
-        EN: Args: see the class docstring. 中文：参数：见类文档。
+        EN: Args: see the class docstring; scan_entry (threat scan on ingested chunk text, default
+            pass-through — flagged chunks are skipped; the real scanner is §1.6); rerank (default identity).
+        中文：参数：见类文档；scan_entry（ingest 片段文本威胁扫描，默认直通——被标记的片段跳过；真实扫描器为 §1.6）；
+            rerank（默认恒等）。
         """
-        super().__init__()
+        super().__init__(rerank=rerank)
         self._vec = vector_store
         self._struct = structured_store
         self._embed = embed_fn
@@ -65,6 +71,7 @@ class CandidateMemoryProvider(RetrievalProvider):
         self._embed_version = embed_version
         self._scope = scope_filter or (lambda _mk: True)
         self._gate = write_gate
+        self._scan = scan_entry
         self._k = k
 
     @property
@@ -89,13 +96,15 @@ class CandidateMemoryProvider(RetrievalProvider):
             held = self._gate("add", "candidate", candidate.memory_key)
             if held:
                 return {"success": False, "staged": True, "message": held}
+        clean = [(sr, t) for sr, t in chunks if not (self._scan is not None and self._scan(t))]
         self._struct.upsert(candidate)
         records = [VectorRecord(
             memory_key=candidate.memory_key, embed_model=self._embed_model, embed_version=self._embed_version,
             struct_ref=candidate.memory_key, source_ref=source_ref, text=text, embedding=self._embed(text),
-        ) for source_ref, text in chunks]
-        self._vec.add(records)
-        return {"success": True, "ingested": len(records)}
+        ) for source_ref, text in clean]
+        if records:
+            self._vec.add(records)
+        return {"success": True, "ingested": len(records), "skipped": len(chunks) - len(records)}
 
     def delete(self, memory_key: str) -> Dict[str, int]:
         """Erase a candidate: structured row + derived vectors (the §1.5 cascade mechanism).
@@ -109,17 +118,17 @@ class CandidateMemoryProvider(RetrievalProvider):
         }
 
     def _retrieve(self, query: str, session_id: str) -> List[Hit]:
-        """Filter to the authorised candidates FIRST, then vector NN over only those.
+        """Filter to the authorised candidates FIRST, then vector NN over only those (one search).
 
-        EN: Args: query; session_id. Returns: scoped top-k hits (empty if nothing authorised).
-        中文：参数：query；session_id。返回：经范围限定的 top-k 命中（无授权则为空）。
+        EN —
+        Args: query; session_id. Returns: scoped top-k hits (empty if nothing authorised). The
+        structured store yields the allowed ``memory_key`` set (RBAC), passed to ``search`` as a
+        ``scope`` predicate so filtering happens BEFORE the top-k truncation in a single search.
+        中文 —
+        参数：query；session_id。返回：经范围限定的 top-k 命中（无授权则为空）。结构化库产出允许的 ``memory_key``
+        集合（RBAC），作为 ``scope`` 谓词传给 ``search``，使过滤在单次搜索中于 top-k 截断**之前**发生。
         """
-        allowed = [r.memory_key for r in self._struct.filter(lambda r: self._scope(r.memory_key))]
+        allowed = {r.memory_key for r in self._struct.filter(lambda r: self._scope(r.memory_key))}
         if not allowed:
             return []
-        qv = self._embed(query)
-        hits: List[Hit] = []
-        for key in allowed:
-            hits.extend(self._vec.search(qv, self._k, key_prefix=key))
-        hits.sort(key=lambda h: h[1], reverse=True)
-        return hits[: self._k]
+        return self._vec.search(self._embed(query), self._k, scope=lambda mk: mk in allowed)
