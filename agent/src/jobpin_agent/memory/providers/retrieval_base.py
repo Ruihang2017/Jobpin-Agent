@@ -114,3 +114,15 @@ class RetrievalProvider(MemoryProvider):
         中文：参数：query；session_id。返回：None。
         """
         self._cache[(query, session_id)] = self._render(self._rerank(query, self._retrieve(query, session_id)))
+
+    def clear_recall_cache(self) -> None:
+        """Drop all cached recall (called by the §1.5 erasure pipeline after a delete).
+
+        EN —
+        After a data-subject erasure, a previously-cached recall could still echo the erased entry, so
+        the erasure pipeline clears every retrieval provider's cache. Returns: None.
+
+        中文 —
+        数据主体擦除后，先前缓存的召回可能仍回显被擦除条目，故擦除流水线清空每个检索 provider 的缓存。返回：None。
+        """
+        self._cache.clear()

@@ -184,6 +184,17 @@ class CompositeMemoryProvider(MemoryProvider):
         for p in self._subs:
             p.on_memory_write(action, target, content, metadata=metadata)
 
+    def clear_recall_cache(self) -> None:
+        """Fan out a recall-cache clear to sub-providers that maintain one (the §1.5 erasure pipeline).
+
+        EN: Returns: None. Sub-providers without a cache (e.g. the builtin) are skipped.
+        中文：返回：None。无缓存的子 provider（如内置）跳过。
+        """
+        for p in self._subs:
+            clear = getattr(p, "clear_recall_cache", None)
+            if callable(clear):
+                clear()
+
     def backup_paths(self) -> List[str]:
         """Merge the external storage paths declared by sub-providers.
 
