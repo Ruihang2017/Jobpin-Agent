@@ -6,15 +6,20 @@ lifecycle so the Manager can orchestrate it alongside future entity providers
 (§1.4), and so file-backed memory gets the ``on_pre_compress`` seam the §1.6
 pre-compression wiring needs ("MemoryStore is not a Provider" gap, Plan §1.6).
 
-§1.3 keeps it deliberately lean (read/seam path only):
+§1.3 kept it deliberately lean (read/seam path only); §1.5 lights up the write tool:
 - The curated frozen snapshot reaches the system prompt DIRECTLY via the §1.1
   ``memory_snapshot`` slot (assembly order, Plan §1.1), so ``system_prompt_block``
   returns ``""`` here — returning the snapshot would duplicate it.
 - ``prefetch`` returns ``""`` (curated memory is static in the prompt; per-query
   recall is §1.4's vector providers).
-- ``sync_turn`` is a no-op (curated memory is hand-edited, not auto-written per
-  turn; the governed ``memory`` write tool is §1.5).
-- ``get_tool_schemas`` returns ``[]`` (the write tool is §1.5).
+- ``sync_turn`` is a no-op (curated memory is not auto-written per turn; writes go
+  through the model-facing governed ``memory`` tool below, not background sync).
+- ``get_tool_schemas`` returns the governed ``memory`` write tool **when a §1.5
+  ``GovernanceGate`` is injected** (``gate=``); without a gate it returns ``[]``
+  (the §1.3 lean default, preserved for back-compat). ``handle_tool_call`` runs the
+  gate as a pre-check (reject unlabelled / unconsented / biased writes), prefixes
+  the validated governance header onto the entry, then calls the §1.2 store — so the
+  ported ``MemoryStore`` is unchanged and 100% of accepted writes carry labels.
 
 中文 —
 让策展的 Org/Recruiter 存储（§1.2）参与 ``MemoryProvider`` 生命周期，使 Manager 能与未来的实体 provider
@@ -30,10 +35,40 @@ Provider”的缺口，计划 §1.6）。
 """
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
+from ...governance.labels import ConsentLabel, Provenance
+from ...governance.namespace import DEFAULT_ORG, DEFAULT_TENANT
 from ..provider import MemoryProvider
 from ..store import MemoryStore
+
+# The governed model-facing write tool (§1.5). Every write MUST carry provenance + a lawful-basis label;
+# the handler runs the GovernanceGate before touching the §1.2 store.
+MEMORY_TOOL_SCHEMA: Dict[str, Any] = {
+    "name": "memory",
+    "description": (
+        "Add, replace, or remove a curated organisational ('org') or recruiter ('recruiter') memory "
+        "entry. Every write MUST carry provenance (source_type + source_ref) and a lawful-basis label; "
+        "writes that lack them, or that reference protected attributes / proxy variables, are rejected."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["add", "replace", "remove"]},
+            "target": {"type": "string", "enum": ["org", "recruiter"]},
+            "content": {"type": "string", "description": "The entry body (for add/replace)."},
+            "old_text": {"type": "string", "description": "Unique substring of the entry (for replace/remove)."},
+            "source_type": {"type": "string", "description": "e.g. recruiter_input, candidate_submitted, public_jd."},
+            "source_ref": {"type": "string", "description": "Pointer back to the original evidence (required)."},
+            "legal_basis": {"type": "string", "enum": ["consent", "legitimate_interest", "contract"]},
+            "purpose": {"type": "string"},
+            "consent_id": {"type": "string", "description": "Required when source_type needs consent."},
+            "retention_policy": {"type": "string", "description": "e.g. hired_5y, not_hired_180d."},
+        },
+        "required": ["action", "target"],
+    },
+}
 
 
 class BuiltinMemoryProvider(MemoryProvider):
@@ -49,13 +84,30 @@ class BuiltinMemoryProvider(MemoryProvider):
     真实压缩前抽取 §1.6）随后在同一接口背后启用。
     """
 
-    def __init__(self, store: MemoryStore) -> None:
-        """Wrap a loaded ``MemoryStore``.
+    # Curated entries use named-constant keys at org/recruiter level (Plan §1.0): the single-tenant
+    # MVP placeholders. The governed write tool stamps provenance.memory_key from these.
+    _TARGET_KEYS = {
+        "org": f"{DEFAULT_TENANT}:{DEFAULT_ORG}:org:policy",
+        "recruiter": f"{DEFAULT_TENANT}:{DEFAULT_ORG}:recruiter:prefs",
+    }
 
-        EN: Args: store — a §1.2 store (already ``load_from_disk()``-ed by the composition root).
-        中文：参数：store——§1.2 存储（已由组合根 ``load_from_disk()``）。
+    def __init__(self, store: MemoryStore, *, gate: Optional[Any] = None, actor: str = "system") -> None:
+        """Wrap a loaded ``MemoryStore``; optionally enable the governed write tool.
+
+        EN —
+        Args: store — a §1.2 store (already ``load_from_disk()``-ed by the composition root); gate — an
+        optional §1.5 ``GovernanceGate`` (when supplied, the governed ``memory`` write tool is exposed
+        and enforced; when ``None``, the §1.3 lean read/seam-only behaviour is preserved); actor — the
+        audit actor (overridden by ``agent_identity`` at ``initialize``).
+
+        中文 —
+        参数：store——§1.2 存储（已由组合根 ``load_from_disk()``）；gate——可选的 §1.5 ``GovernanceGate``（提供时暴露并
+        强制受治理的 ``memory`` 写工具；为 ``None`` 时保留 §1.3 仅读/接缝行为）；actor——审计执行者（在 ``initialize`` 由
+        ``agent_identity`` 覆盖）。
         """
         self._store = store
+        self._gate = gate
+        self._actor = actor
 
     @property
     def name(self) -> str:
@@ -84,11 +136,14 @@ class BuiltinMemoryProvider(MemoryProvider):
         return True
 
     def initialize(self, session_id: str, **kwargs) -> None:
-        """No-op: the store is loaded by the composition root before use.
+        """Capture the audit actor from ``agent_identity`` (the store is already loaded).
 
-        EN: Args: session_id; kwargs (ignored). Returns: None.
-        中文：参数：session_id；kwargs（忽略）。返回：None。
+        EN: Args: session_id; kwargs (``agent_identity`` becomes the audit actor if present). Returns: None.
+        中文：参数：session_id；kwargs（若有 ``agent_identity`` 则作为审计执行者）。返回：None。
         """
+        identity = kwargs.get("agent_identity")
+        if identity:
+            self._actor = identity
         return None
 
     def system_prompt_block(self) -> str:
@@ -123,12 +178,54 @@ class BuiltinMemoryProvider(MemoryProvider):
         return None
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        """No tools yet — the governed ``memory`` write tool lands at §1.5.
+        """The governed ``memory`` write tool when a gate is injected, else ``[]`` (§1.3 default).
 
-        EN: Returns: ``[]``.
-        中文：返回：``[]``。
+        EN: Returns: ``[MEMORY_TOOL_SCHEMA]`` if a §1.5 gate is present, else ``[]``.
+        中文：返回：若有 §1.5 门控则 ``[MEMORY_TOOL_SCHEMA]``，否则 ``[]``。
         """
-        return []
+        return [MEMORY_TOOL_SCHEMA] if self._gate is not None else []
+
+    def handle_tool_call(self, tool_name: str, args: Dict[str, Any], **kwargs) -> str:
+        """Run the governed ``memory`` write: gate pre-check → header → §1.2 store → audit the commit.
+
+        EN —
+        Args: tool_name (must be ``"memory"``); args (action/target/content/old_text + governance label
+        fields); kwargs (ignored). Returns: a JSON string — on rejection ``{"success": false, "rejected":
+        <code>, "code": <full>}`` (the gate already audited it); on a committed write the §1.2 store's
+        success dict, after recording ``write:<action>`` / ``ok``. Falls back to the base behaviour when
+        no gate is configured or the tool is unknown.
+
+        中文 —
+        参数：tool_name（须为 ``"memory"``）；args（action/target/content/old_text + 治理标签字段）；kwargs（忽略）。
+        返回：JSON 字符串——拒绝时 ``{"success": false, "rejected": <码>, "code": <全码>}``（门控已审计）；提交成功时为
+        §1.2 存储的成功字典，并先记录 ``write:<action>`` / ``ok``。无门控或未知工具时回退到基类行为。
+        """
+        if tool_name != "memory" or self._gate is None:
+            return super().handle_tool_call(tool_name, args, **kwargs)
+        action = str(args.get("action") or "")
+        target = str(args.get("target") or "org")
+        if target not in self._TARGET_KEYS:
+            return json.dumps({"success": False, "error": f"unknown target {target!r}"})
+        body = str(args.get("content") or "")
+        key = self._TARGET_KEYS[target]
+        prov = Provenance(key, str(args.get("source_type") or ""), str(args.get("source_ref") or ""),
+                          collected_by=self._actor)
+        consent = ConsentLabel(str(args.get("legal_basis") or "legitimate_interest"),
+                               str(args.get("purpose") or ""), str(args.get("consent_id") or ""))
+        retention_key = str(args.get("retention_policy") or "not_hired_180d")
+        decision = self._gate.validate(action, key, body, prov, consent, retention_key, actor=self._actor)
+        if not decision.ok:
+            return json.dumps({"success": False, "rejected": decision.code.split(":", 1)[-1],
+                               "code": decision.code})
+        if action == "remove":
+            result = self._store.remove(target, str(args.get("old_text") or ""))
+        elif action == "replace":
+            result = self._store.replace(target, str(args.get("old_text") or ""), decision.header + body)
+        else:
+            result = self._store.add(target, decision.header + body)
+        if result.get("success"):
+            self._gate.audit.record(self._actor, f"write:{action}", key, result="ok")
+        return json.dumps(result)
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
         """Seam for §1.6: the file store can take part in pre-compression extraction.
