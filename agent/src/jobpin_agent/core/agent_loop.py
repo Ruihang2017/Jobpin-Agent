@@ -122,6 +122,7 @@ class Agent:
         hooks: MemoryHooks | None = None,
         parts: SystemPromptParts | None = None,
         max_tool_iterations: int = 8,
+        compressor=None,
     ) -> None:
         """Construct an agent.
 
@@ -135,6 +136,11 @@ class Agent:
             parts: Static system-prompt sections (empty if ``None``). Treated as
                 read-only by the loop.
             max_tool_iterations: Max tool rounds before stopping a turn.
+            compressor: Optional §1.6 ``ContextCompressor``. When set, the loop folds an
+                over-long history into a fact-preserving summary at the top of a turn (the
+                first sanctioned loop wiring since §1.1; §1.1 deferred it here). ``None`` →
+                no compression (behaviour identical to §1.1–§1.5; the frozen system-prompt
+                snapshot is untouched either way).
 
         中文 —
         参数：
@@ -145,6 +151,9 @@ class Agent:
             hooks：记忆接缝（为 ``None`` 时用 ``NoOpHooks``）。
             parts：静态系统提示章节（为 ``None`` 时为空）。循环将其视为只读。
             max_tool_iterations：停止回合前的最大工具轮数。
+            compressor：可选的 §1.6 ``ContextCompressor``。设置后，循环在回合开头把过长历史折叠为
+                保真摘要（自 §1.1 以来首次受准许的循环接线；§1.1 将其推迟至此）。``None`` → 无压缩
+                （行为与 §1.1–§1.5 一致；冻结系统提示快照在两种情况下都不变）。
         """
         self.provider = provider
         self.tools = tools
@@ -153,6 +162,7 @@ class Agent:
         self.hooks = hooks or NoOpHooks()
         self.parts = parts or SystemPromptParts()
         self.max_tool_iterations = max_tool_iterations
+        self.compressor = compressor
 
     def _compose(self, history: list[Message], recall: str) -> list[Message]:
         """Build the message list sent to the model for this turn.
@@ -221,6 +231,15 @@ class Agent:
         self.tracer.event("turn_start", session_id=session_id, user_input=user_input)
         recall = self.hooks.prefetch(user_input, session_id)  # per-turn fenced recall (no-op in §1.1)
         self.store.append_message(session_id, Message(Role.USER, content=user_input))
+        # §1.6: opt-in context compression at the turn's top. Folds an over-long history into a
+        # fact-preserving summary (keeping the just-appended user message among the recent kept), via
+        # the captured on_pre_compress facts. Inert when no compressor is configured (§1.1–§1.5 default);
+        # only rewrites history messages — the frozen system-prompt snapshot slot is never touched.
+        if self.compressor is not None:
+            history = self.store.get_messages(session_id)
+            if self.compressor.should_compress(history):
+                result = self.compressor.compress(session_id, self.store, self.hooks)
+                self.tracer.event("compress", compressed=result.compressed, persisted=result.persisted)
         iterations = 0
         while True:
             history = self.store.get_messages(session_id)
