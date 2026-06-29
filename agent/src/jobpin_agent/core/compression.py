@@ -33,9 +33,19 @@ hooks.on_pre_compress(old)``（Manager 已聚合各 provider 事实）；(3) 把
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from .messages import Message, Role
+
+if TYPE_CHECKING:  # hints only (avoids a core→core import at runtime)
+    from .hooks import MemoryHooks
+    from .session_store import SessionStore
+
+# HONEST SCOPE NOTE (§1.6): the default summariser is fact-PRESERVING, not token-REDUCING — it digests
+# the folded turns verbatim and appends the captured facts, so it bounds the message COUNT (so the loop
+# does not re-fire) but NOT the token footprint, which can still grow across repeated compressions. The
+# real lossy/abstractive summariser that controls the context budget is the ``summarize_fn`` seam, wired
+# at §1.11/config with the model. Until then, do not rely on this as a token-budget control.
 
 
 def default_summarize(old_messages: List[Message], facts: str) -> str:
@@ -102,7 +112,10 @@ class ContextCompressor:
         """Configure the compressor.
 
         EN: Args: max_messages (compress when history exceeds this); keep_recent (recent turns kept
-            verbatim); summarize_fn (default deterministic); persist_fn (optional gated persist of facts).
+            verbatim — keep ``>= 1`` so the current turn's user message survives as a standalone message,
+            not only inside the summary digest; the agent loop compresses after appending the user turn);
+            summarize_fn (default deterministic, fact-preserving — see the module-level scope note);
+            persist_fn (optional gated persist of facts).
         中文：参数：max_messages（历史超过即压缩）；keep_recent（逐字保留的最近回合）；summarize_fn（默认确定性）；
             persist_fn（可选的门控事实持久化）。
         """
@@ -119,7 +132,7 @@ class ContextCompressor:
         """
         return len(messages) > self._max
 
-    def compress(self, session_id: str, store, hooks) -> CompressionResult:
+    def compress(self, session_id: str, store: "SessionStore", hooks: "MemoryHooks") -> CompressionResult:
         """Fold old messages into a fact-preserving summary; best-effort gated persist.
 
         EN —

@@ -91,6 +91,28 @@ def test_compact_noop_when_short():
     assert len(store.get_messages(sid)) == 1
 
 
+def test_lossy_summariser_loses_old_content_but_pre_compress_fact_survives():
+    """With a LOSSY summariser the captured on_pre_compress fact is what survives — proving the wiring's value.
+
+    EN — the §1.6 point is rescuing a fact a lossy summariser would otherwise drop. A lossy summarize_fn
+    keeps only the captured facts; the old turn content is gone, but the on_pre_compress fact remains.
+    中文 — §1.6 的要点是抢救有损摘要会丢弃的事实。有损 summarize_fn 仅保留捕获的事实；旧回合内容消失，但
+    on_pre_compress 事实留存。
+    """
+    def lossy_summarize(old_messages, facts):
+        return "[lossy summary] " + (facts or "")  # deliberately DROPS the folded message content
+
+    store = SessionStore(":memory:")
+    sid = store.create_session()
+    _seed(store, sid, 8)  # turn 2 carries "fact Ada knows Kafka" in the OLD (folded) region
+    c = ContextCompressor(max_messages=6, keep_recent=4, summarize_fn=lossy_summarize)
+    c.compress(sid, store, _Hooks("RESCUED: Ada cleared to interview"))
+    summary = store.get_messages(sid)[0].content
+    assert "RESCUED: Ada cleared to interview" in summary   # survived ONLY via capture+merge
+    assert "fact Ada knows Kafka" not in summary            # the lossy summariser dropped old content
+    assert "turn 0" not in summary
+
+
 def test_default_summarize_is_fact_preserving():
     """default_summarize includes both the provider facts and a digest of the old turns.
 

@@ -19,12 +19,24 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ...security.threat_patterns import first_threat_message
 from ..embedding import EmbedFn
 from ..structured import CandidateRow, CandidateStructuredStore
 from ..vector.record import VectorRecord
 from ..vector.rerank import RerankFn
 from ..vector.store import VectorStore
 from .retrieval_base import Hit, RetrievalProvider
+
+
+def _default_scan(text: str):
+    """Fail-safe default chunk scan for candidate ingest (§1.6) — the context-scope threat scan.
+
+    EN: Args: text (a résumé chunk). Returns: a threat description or None. Résumé text is untrusted
+        (prompt-injection via résumé), so the candidate memory sink scans by default; override to disable.
+    中文：参数：text（简历片段）。返回：威胁描述或 None。简历文本不可信（经简历的提示注入），故候选人记忆汇默认扫描；
+        传入以禁用。
+    """
+    return first_threat_message(text, "context")
 
 
 class CandidateMemoryProvider(RetrievalProvider):
@@ -60,8 +72,9 @@ class CandidateMemoryProvider(RetrievalProvider):
     ) -> None:
         """Construct the provider.
 
-        EN: Args: see the class docstring; scan_entry (threat scan on ingested chunk text, default
-            pass-through — flagged chunks are skipped; the real scanner is §1.6); governance (an optional
+        EN: Args: see the class docstring; scan_entry (threat scan on ingested chunk text — flagged chunks
+            are skipped; **defaults to the §1.6 context-scope threat scan** since résumé text is untrusted,
+            pass an explicit callable to override/disable); governance (an optional
             §1.5 ``GovernanceGate`` — when set, ``ingest`` enforces provenance + granted consent and
             rejects unlabelled/unconsented candidate writes; default None preserves §1.4 behaviour);
             actor (audit actor for the governance check); rerank (default identity).
@@ -77,7 +90,7 @@ class CandidateMemoryProvider(RetrievalProvider):
         self._embed_version = embed_version
         self._scope = scope_filter or (lambda _mk: True)
         self._gate = write_gate
-        self._scan = scan_entry
+        self._scan = scan_entry if scan_entry is not None else _default_scan
         self._governance = governance
         self._actor = actor
         self._k = k

@@ -239,7 +239,8 @@ class Agent:
             history = self.store.get_messages(session_id)
             if self.compressor.should_compress(history):
                 result = self.compressor.compress(session_id, self.store, self.hooks)
-                self.tracer.event("compress", compressed=result.compressed, persisted=result.persisted)
+                self.tracer.event("compress", session_id=session_id,
+                                  compressed=result.compressed, persisted=result.persisted)
         iterations = 0
         while True:
             history = self.store.get_messages(session_id)

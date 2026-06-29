@@ -16,11 +16,22 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
+from ...security.threat_patterns import first_threat_message
 from ..embedding import EmbedFn
 from ..vector.record import VectorRecord
 from ..vector.rerank import RerankFn
 from ..vector.store import VectorStore
 from .retrieval_base import Hit, RetrievalProvider
+
+
+def _default_scan(text: str):
+    """Fail-safe default scan for KB-doc ingest (§1.6) — the context-scope threat scan.
+
+    EN: Args: text (a knowledge-base chunk). Returns: a threat description or None. KB content can be
+        untrusted (scraped/imported), so the semantic sink scans by default; pass a callable to override.
+    中文：参数：text（知识库片段）。返回：威胁描述或 None。KB 内容可能不可信（抓取/导入），故语义汇默认扫描；传入以覆盖。
+    """
+    return first_threat_message(text, "context")
 
 
 class SemanticRAGProvider(RetrievalProvider):
@@ -53,9 +64,10 @@ class SemanticRAGProvider(RetrievalProvider):
         """Construct the provider.
 
         EN: Args: see the class docstring; write_gate (ingest approval, default pass-through — §1.5);
-            scan_entry (threat scan on ingested text, default pass-through — §1.6); rerank (default identity).
-        中文：参数：见类文档；write_gate（ingest 审批，默认直通——§1.5）；scan_entry（ingest 文本威胁扫描，默认直通
-            ——§1.6）；rerank（默认恒等）。
+            scan_entry (threat scan on ingested text — **defaults to the §1.6 context-scope threat scan**;
+            pass an explicit callable to override/disable); rerank (default identity).
+        中文：参数：见类文档；write_gate（ingest 审批，默认直通——§1.5）；scan_entry（ingest 文本威胁扫描，**默认采用
+            §1.6 context 范围威胁扫描**；传入显式可调用对象以覆盖/禁用）；rerank（默认恒等）。
         """
         super().__init__(rerank=rerank)
         self._store = vector_store
@@ -64,7 +76,7 @@ class SemanticRAGProvider(RetrievalProvider):
         self._embed_version = embed_version
         self._scope = scope_filter or (lambda _mk: True)
         self._gate = write_gate
-        self._scan = scan_entry
+        self._scan = scan_entry if scan_entry is not None else _default_scan
         self._k = k
 
     @property
