@@ -338,9 +338,9 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 **Status:**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
-- Phase 0 **§1.2 file-backed `MemoryStore`: complete** on `phase0/1.2-memory-store` (off `main`);
-  triple-reviewed (port confirmed **faithful**); security review (`docs/security/p0-1.2-…`) +
-  bilingual devlog written. **Not merged.**
+- Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
+  `phase0/1.2-memory-store`; triple-reviewed (port confirmed **faithful**); security review
+  (`docs/security/p0-1.2-…`) + bilingual devlog. (§1.3/§1.4/slice/§1.5 still stacked, not yet merged.)
 - Phase 0 **§1.3 `MemoryProvider` + `MemoryManager` + fence + seam: complete** on
   `phase0/1.3-memory-provider-manager` (off `phase0/1.2-memory-store`); triple-reviewed (all three
   **YES**, port **faithful**, "no `agent_loop.py` change" git-verified); Plan corrected (EN+中文);
@@ -361,16 +361,27 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   bilingual devlog (`p0-vertical-slice-hiring`) with the **captured real-model run**. **Not merged.**
   Verified live against `gpt-4o-mini`: recalled Ada+Grace, cited evidence, excluded the sales candidate.
   Governance/scan/parsing/router/de-id stay stubbed behind the seams (→ §1.5/§1.6/§1.11).
+- Phase 0 **§1.5 HR memory governance: complete** on `phase0/1.5-memory-governance` (off
+  `phase0/vertical-slice-hiring`); **one cohesive cycle** (owner opted in), built in independently-tested
+  layers. New `governance/` package (namespace, provenance/consent labels, write-gate, bias hygiene,
+  RBAC, retention, erasure, audit) + the **governed model-facing `memory` write tool** (the §1.3 deferral)
+  via a `ToolRegistry`→manager bridge — **no `agent_loop.py` change, ported `MemoryStore` byte-unchanged**
+  (git-verified). Candidate-ingest path also governed (`validate_entity_ingest`). Triple-reviewed
+  (architect **YES**; senior + PM **NO** → all MAJORs fixed: bias word-boundaries, header-leak strip,
+  candidate-ingest governance); Plan corrected (EN+中文: enforce-in-provider-write-path wording; read-audit
+  → §1.8); security review (`docs/security/p0-1.5-…`) + bilingual devlog. **38 governance tests; full
+  suite 145 passed, 2 skipped.** **Not merged.** Deferred behind seams: read/recall audit → §1.8; threat
+  scan → §1.6; residual de-id → §1.11; RBAC auth source → §1.9 / PRD open-Q#8.
 
-**Branch:** `phase0/vertical-slice-hiring` (off `phase0/1.4-…` off `1.3` off `1.2` off `main`).
-Merge order: **§1.2 → §1.3 → §1.4 → vertical-slice**.
+**Branch:** `phase0/1.5-memory-governance` (off `vertical-slice-hiring` off `1.4` off `1.3` off `1.2` off `main`).
+`main` now holds through §1.2 (PR #4). Merge order for the rest: **§1.3 → §1.4 → vertical-slice → §1.5**
+(all stacked; §1.3 has no own remote branch but its commits ride inside §1.4/slice/§1.5).
 
 **Immediate next steps:**
-1. **Land the chain:** owner merges `§1.2 → §1.3 → §1.4 → vertical-slice` into `main` in order (kept
-   gate; auto-deploys Netlify).
-2. **Next planned point — §1.5 (HR memory governance):** still the next *planned* point (the slice was
-   an out-of-order, sanctioned pull-forward). The linchpin compliance point — the write-gate (reject
-   writes lacking provenance/consent labels), RBAC `scope_filter`, the erasure pipeline over the §1.4
-   cascade mechanism, and the model-facing `memory` **write tool** born governed. The §1.4/slice seams
-   (`write_gate`/`scope_filter`/`scan_entry`) are already wired for it. (§1.6 = injection defence; §1.11
-   = model router + de-identification + résumé parsing — which upgrades the slice to the full §1.15.)
+1. **Land the chain:** owner merges the remaining stack into `main` in order (kept gate; auto-deploys
+   Netlify). Because the branches are stacked, merging `§1.4 → main` carries §1.3; `vertical-slice → main`
+   carries the slice; `§1.5 → main` carries §1.5.
+2. **Next planned point — §1.6 (injection defence + pre-compression wiring):** port `threat_patterns`
+   (real `scan_entry`), wire the `on_pre_compress` fact-injection (the gap Hermes leaves unwired), and
+   route the pre-compression persist through the §1.5 `GovernanceGate`. (§1.8 = canonical data model +
+   read-audit; §1.9 = security baseline reusing `rbac.scope_predicate`; §1.11 = router + de-id + parsing.)
