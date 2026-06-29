@@ -659,6 +659,8 @@ golden_case := {
 
 ### 1.15 Workstream: Thin vertical slice (end-to-end validation)
 
+> **Partial pull-forward (done early, 2026-06-29):** following the §0 "thin vertical slice first" principle, a **thin hiring slice was built early** — synthetic résumés → §1.4 candidate/semantic memory → §1.3 manager/hooks → §1.1 loop → a **real OpenAI model** that recalls candidates (semantic, via a real `openai_embedder`) and returns an explainable, **cited**, **HITL-framed** shortlist, **with no `agent_loop.py` change** (`examples/hiring_slice_demo.py`, devlog `p0-vertical-slice-hiring`). It deliberately **stubs** what is not yet built, behind the seams already in place: the governance write-gate + RBAC (§1.5), the real threat scan (§1.6), résumé **parsing** (§1.11), the model **router / de-identification / eval / tracing backend** (§1.11), the Layer-B **HITL workflow engine** (§1.7), and numeric **match scoring** (M1). Synthetic résumés only (real PII outbound needs the §1.11 de-id pipeline). **The full §1.15 below remains** — parse a real résumé, route through the §1.5 governance gate, and meet the recall-P95 target — once those points land.
+
 **What (contract)**: Use one thinnest end-to-end path to prove "the pipe is connected" — entirely local, with no real decisions.
 
 **Scope**: end-to-end "**parse 1 resume → match 1 JD → produce an explainable score → write to candidate memory → recall next time**", stringing together 1.1 (core) / 1.2–1.4 (memory) / 1.5 (governance) / 1.6 (fence) / 1.11 (routing / tracing).
