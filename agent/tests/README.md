@@ -16,6 +16,7 @@ offline and deterministically (the OpenAI integration test skips unless
 - `test_delegation.py` — skip_memory child + parent observation.
 - `test_openai_provider.py` — wire mapping, kwargs, opt-in integration.
 - `test_demo.py` — the runnable demo, offline.
+- `governance/` — §1.5 HR memory governance tests (see its own README).
 - `data/` — fixtures (the system-prompt golden file).
 
 ## 中文
@@ -33,4 +34,5 @@ Agent 内核的 pytest 测试。每个源模块对应一个测试模块；全部
 - `test_delegation.py` — skip_memory 子代理 + 父代理观察。
 - `test_openai_provider.py` — 线映射、kwargs、可选集成。
 - `test_demo.py` — 可运行演示，离线。
+- `governance/` — §1.5 HR 记忆治理测试（见其自身 README）。
 - `data/` — 固定装置（系统提示黄金文件）。

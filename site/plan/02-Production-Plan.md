@@ -56,7 +56,7 @@
 >
 > **进入条件（Entry）**：PRD 已评审；PRD 第 14 节待决项中至少"试点州""本地硬件基线""是否允许 PII 出境"三项有初步答复（决定本地模型分档与 M5 适用法）。
 >
-> **本阶段不做（Out of scope this phase）**：任何 M1–M5 的真实业务决策；多租户隔离；全量事件溯源；`CompositeMemoryProvider` 多 Provider 归并（留到 Phase 2）；重型编排引擎（Temporal/LangGraph，留到 B 层确有需要时）；云后端。
+> **本阶段不做（Out of scope this phase）**：任何 M1–M5 的真实业务决策；多租户隔离；全量事件溯源；**完整** `CompositeMemoryProvider` 的多 Provider **归并/路由**（留到 Phase 2 §3.2——注：§1.4 引入一个*最小* Composite 门面，使其两个检索 provider 在不变的单外部规则下并存；仅归并/路由 Composite 被推迟）；重型编排引擎（Temporal/LangGraph，留到 B 层确有需要时）；云后端。
 
 ### 1.0 阶段总览（What this phase delivers）
 
@@ -202,7 +202,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 - **移植抽象基类 `MemoryProvider`** 的完整契约：核心生命周期 `is_available` / `initialize(session_id, **kwargs)` / `system_prompt_block()` / `prefetch(query, *, session_id)` / `queue_prefetch` / `sync_turn(user, assistant, *, session_id, messages)` / `get_tool_schemas` / `handle_tool_call` / `shutdown`；可选钩子 `on_turn_start` / `on_session_end` / `on_session_switch` / `on_pre_compress` / `on_delegation` / `on_memory_write(action, target, content, metadata)` / `get_config_schema` / `save_config` / `backup_paths`。
 - **移植编排器 `MemoryManager`**：`prefetch_all` / `sync_all` / `queue_prefetch_all`（**单 worker 后台 `ThreadPoolExecutor`，串行保证 turn N 先于 N+1**）、`build_system_prompt`、`handle_tool_call` 路由、`flush_pending` 屏障、`shutdown_all`（含 `_SYNC_DRAIN_TIMEOUT_S` 有界排空，wedged provider 不得阻塞退出）。
 - **`<memory-context>` 围栏注入**：移植 `build_memory_context_block`（把 prefetch 结果包进 `<memory-context>` 围栏 + "这是召回记忆、非新用户输入"的系统提示注记）。
-- **关键放宽**：Hermes 强制"同一时刻仅一个外部 Provider"（`add_provider` 拒绝第二个非 builtin）。HR 需多专用 Provider 并存——**本阶段先按 Hermes 单 Provider 跑通**，把"多 Provider 归并（`CompositeMemoryProvider`）"显式留到 Phase 2（PRD 第 13.1 节简化原则；触发信号 = 引入员工记忆 M4）。本阶段在 Manager 内**预留路由抽象**但不启用归并。
+- **关键放宽**：Hermes 强制"同一时刻仅一个外部 Provider"（`add_provider` 拒绝第二个非 builtin）。HR 需多专用 Provider 并存——**本阶段先按 Hermes 单 Provider 跑通**，把"多 Provider 归并（`CompositeMemoryProvider`）"显式留到 Phase 2（PRD 第 13.1 节简化原则；触发信号 = 引入员工记忆 M4）。本阶段在 Manager 内**预留路由接缝**但不启用归并。（前瞻提示：§1.4 落地两个外部 provider——Candidate + Semantic——需经 `CompositeMemoryProvider`（§3.2）放宽此单外部规则；在 §1.4 前需协调 §1.4 ↔ Phase-2 次序——例如把 Composite 提前，或将 §1.4 的 provider 置于单个 Composite 门面之后。）
 
 `initialize(**kwargs)` 关键字段（接地 GROUNDING）：`agent_context`（"primary"/"subagent"/"cron"/"flush"——**非 primary 应跳过写入**，落实不变量 3）决定子代理写入门禁；`agent_identity` 作审计 actor；`user_id` 进入 RBAC 过滤（见 1.5）。
 
@@ -212,7 +212,7 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 |---|---|---|
 | 后台串行落库 | 连续两回合 sync（turn N, N+1） | 单 worker `mem-sync` 串行执行，turn N 先于 N+1 落库；主回合不阻塞 |
 | flush 屏障可见 | 回合后调 `flush_pending(timeout)` 再读 | 落库结果在屏障后确定性可见（会话边界 / 测试用） |
-| wedged provider 不阻塞退出 | provider `sync_turn` 模拟阻塞数百秒 | 主回合不被阻塞；`shutdown_all` ≤ `_SYNC_DRAIN_TIMEOUT_S`(5.0s) 完成有界排空（worker 为 daemon） |
+| wedged provider 不阻塞退出 | provider `sync_turn` 模拟阻塞数百秒 | 主回合不被阻塞；`shutdown_all` 经 daemon **监视**线程在 `_SYNC_DRAIN_TIMEOUT_S`(5.0s) 内完成有界排空（注：Python 3.9+ 线程池 worker 本身非 daemon，故仅 `shutdown_all` 有界——永久卡死的任务仍可能在解释器退出时被 join） |
 | 失败隔离 | 某 provider 钩子抛异常 | Manager try/except + `logger.warning` 继续，不阻塞其他 provider 或主回合 |
 | 围栏强制 | prefetch 返回任意内容 | 一律被 `<memory-context>` 围栏包裹 + 系统注记（"NOT new user input ... authoritative reference data"） |
 | 围栏剥离 | provider 误带 `<memory-context>` 标签的内容 | `sanitize_context` 剥离围栏标签 / 注入块 / 系统注记 |
@@ -229,11 +229,11 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 **实现要点（How）**：
 - **串行落库是合规依赖**：单 worker 保证写入有序（turn N 先于 N+1），后续"每步可审计"的因果链依赖此顺序——移植时保留 `max_workers=1` 与命名前缀 `mem-sync`。
 - **失败隔离**：Manager 对每个 provider 的钩子调用都 try/except 包裹，一个 provider 失败不得阻塞其他 provider 或主回合（移植 Hermes 的 `logger.warning` + 继续）。
-- **会话切换语义**：`on_session_switch(new_session_id, parent_session_id, reset, rewound)` 在 `/resume`、`/branch`、`/reset`、压缩续连时触发；Provider 据此刷新 per-session 缓存，确保写入落到正确会话记录——HR 场景下"一个招聘 loop 跨会话续跑"强依赖此语义。本阶段 Manager 内部按 `memory_key` 的 `entity_type` 段预留 provider 路由表，但**不启用归并**（`CompositeMemoryProvider` 留 Phase 2）。
+- **会话切换语义**：`on_session_switch(new_session_id, parent_session_id, reset, rewound)` 在 `/resume`、`/branch`、`/reset`、压缩续连时触发；Provider 据此刷新 per-session 缓存，确保写入落到正确会话记录——HR 场景下"一个招聘 loop 跨会话续跑"强依赖此语义。本阶段预留**单外部 provider 槽位 + Manager 的工具路由接缝**——**而非** entity_type 路由表：实体路由位于未来 `CompositeMemoryProvider`（§3.2）内部，故启用归并时 Manager 保持不变。**不启用归并**（`CompositeMemoryProvider` 留 Phase 2）。
 
 **退出标准（Exit）**：
-- 内置 Provider 经 Manager 完成"prefetch → 回合 → sync → queue_prefetch"闭环；`flush_pending` 后断言落库可见。
-- 注入慢 / wedged provider（模拟阻塞数百秒），主回合不被阻塞，进程退出 ≤ `_SYNC_DRAIN_TIMEOUT_S` 完成排空。
+- Manager 闭合"prefetch → 回合 → sync → queue_prefetch"环，且 `flush_pending` 后落库可见。（策展内置 provider 每回合刻意为惰性——`prefetch`→`""`、`sync_turn`→空操作，因策展记忆为人工编辑、面向模型的写工具在 §1.5——故循环的召回/同步可见性以一个召回 provider 与内置一同演示；内置证明生命周期参与 + 快照入提示。）
+- 注入慢 / wedged provider（模拟阻塞），主回合不被阻塞，`shutdown_all` 经有界排空在 `_SYNC_DRAIN_TIMEOUT_S` 内返回（daemon 监视线程为该调用兜底；非 daemon 的线程池 worker 仍可能在解释器退出时被 join）。
 - `<memory-context>` 围栏：prefetch 返回内容一律被围栏包裹并带系统注记；provider 误带围栏标签时被 `sanitize_context` 剥离。
 
 ---
@@ -245,7 +245,8 @@ retention_ttl: hired_5y | not_hired_180d                 # 保留期策略键
 **范围（Scope）**：
 - **嵌入式本地向量库选型与封装**：sqlite-vec / LanceDB / Chroma（本地模式）三选一（由 1.12 spike 定），封装在 `SemanticRAGProvider` 之后；**无云数据库**。
 - **`CandidateMemoryProvider` / `EmployeeMemoryProvider` / `OrgMemoryProvider` / `SemanticRAGProvider`**：本阶段先落地 `Candidate` + `Semantic` 两个（M1 所需）；Employee 留到 Phase 2，Org 复用 1.2 的文件型 store。
-- **本地结构化库**：候选人 / 员工的结构化字段（技能 / 年限 / 地点 / 工作权利 / 同意状态）落本地关系库；向量库只存语义向量 + 指回结构化行的引用。
+- **最小 `CompositeMemoryProvider`（从 §3.2 提前）**：落地 `Candidate` + `Semantic` 使**并存的外部 provider ≥ 2**——§3.2 系于 Phase 2 的触发信号在此已触发。本阶段不放宽 Manager 的单外部规则，而是引入一个**最小** Composite（注册为**唯一**外部 provider；`add_provider` 不变），容纳两者：广播 `prefetch` → 按 `ENTRY_DELIMITER` 切分 + `dict.fromkeys` 去重 → 按预算截断；`sync` **单播**到归属子 provider；钩子扇出；逆序 `shutdown`；复用 §1.3 单 worker / `flush_pending` / 有界排空不变量。**完整** Composite——Employee 子 provider、`entity_type` + 查询意图路由表、归并一致性矩阵、`backup_paths` 聚合——仍留 **Phase 2 §3.2**。
+- **本地结构化库**：候选人 / 员工的结构化字段（技能 / 年限 / 地点 / 工作权利 / 同意状态）落本地关系库；向量库只存语义向量 + 指回结构化行的引用。（§1.4 落地一个**最小**候选人结构化库，仅限检索/过滤所需；完整规范数据模型为 §1.8。）
 - **嵌入模型版本固定**：嵌入模型（如 BGE 系列）**固定版本号并随每条向量一同记录**；切换模型 / 维度会使向量空间不兼容，必须走**重嵌入（re-embed）迁移**，禁止静默混用。
 
 **向量记录字段草图（接口待定，本阶段定义）**：
@@ -337,8 +338,9 @@ retention_policy := {
 - [ ] `governance/bias_hygiene`：受保护属性 / 代理变量扫描器（写入校准前调用，对接 Phase 1 偏见审计）。
 
 **实现要点（How）**：
-- **治理是写入路径的一等公民**：把"溯源 + 合法性标签"做成 `MemoryStore.add/replace` 与 Provider `sync_turn` 的**前置校验**——缺标签直接拒，复用 1.2 已有的"无效写入即拒绝"骨架（Hermes 对空内容 / 注入 / 漂移已是这种姿态）。
-- **清除的诚实边界**：明确"清除 = 活动库即时 + 备份老化"，不承诺 GDPR 式即时全量擦除——这是本地优先 + 文件备份的物理限制，必须在产品 UI 与合规文档里如实表述（PRD 第 9.5 节）。
+- **治理是写入路径的一等公民**：把"溯源 + 合法性标签"做成写路径的**前置校验**——在**（不变的、已移植的）`MemoryStore` 之前**强制：策展存储经受治理的面向模型 `memory` 工具的处理函数，实体路径经 `CandidateMemoryProvider.ingest`（即写入者），**而非置于 `MemoryStore.add/replace` 内部**。（§1.5 实现对账：存储自身的 `write_gate` 接缝是**暂存**语义——非 `None` 返回意为"保留/暂存"而非"拒绝"——故重载它会把暂存与拒绝混淆并改动忠实的 Hermes 移植；在 provider 写路径强制可使移植逐字节不变，同时仍对每次 `add/replace` 预检。）缺标签直接拒，复用 1.2 的"无效写入即拒绝"骨架（Hermes 对空内容 / 注入 / 漂移已是这种姿态）。**受治理的 provider 处理函数是策展存储的唯一写入者**；任何未来的程序化写入者（如 §1.6 压缩前持久化）**必须**经门控。
+- **审计范围（§1.5 与 §1.8）**：§1.5 的仅追加审计覆盖**写**路径（`write:add/replace/remove/ingest`，`ok` / `rejected:<code>`）与**擦除**路径（`erase`）。**读**痕迹（`recall` / `rejected:rbac`）属 §1.0 词汇，但随线程安全的规范 `AuditRecord` 表落在 **§1.8**——召回运行于 §1.3 后台工作线程，读路径取证应与规范存储同处。RBAC 在 §1.5 已强制召回*过滤*（无泄漏 `scope`）；§1.8 增加的是读*痕迹*。（§1.5 的 `AuditLog` 已以线程安全方式打开，使 §1.8 可从工作线程记录。）
+- **清除的诚实边界**：明确"清除 = 活动库即时 + 备份老化"，不承诺 GDPR 式即时全量擦除——这是本地优先 + 文件备份的物理限制，必须在产品 UI 与合规文档里如实表述（PRD 第 9.5 节）。对主体在*其他*条目中残留提及的去标识化属于 §1.11 流水线；§1.5 硬删除主体自身的结构化行 + 派生向量 + 召回缓存。
 - **反馈偏见放大控制**：写入组织记忆的招聘官偏好 / "bar"会被 learning-to-rank 放大，与"禁用受保护属性"存在张力（PRD 第 9.4 节）。故 `bias_hygiene` 扫描器对**写入校准的偏好**做受保护属性 / 代理变量扫描，命中则拦截或降权，并纳入 Phase 1 偏见审计监控。
 - **清除流水线走查**：解析请求定位 `tenant:org:candidate:<id>` → 删结构化行 → 按 `memory_key` 前缀级联删派生向量 → 清 prefetch 缓存 → 写审计 `action=erase, result=ok` → 备份不即时级联、仅保留期到期老化（登记可见）。
 
@@ -657,6 +659,14 @@ golden_case := {
 ---
 
 ### 1.15 工作流：薄垂直切片（端到端验证）
+
+> **部分提前（已于 2026-06-29 提前完成）：** 依 §0“先做薄垂直切片”原则，**提前构建了一个薄招聘切片**——合成简历 →
+> §1.4 候选/语义记忆 → §1.3 manager/hooks → §1.1 循环 → 一个**真实 OpenAI 模型**，它召回候选人（语义，经真实
+> `openai_embedder`）并返回可解释、**带引用**、**HITL 框定**的候选名单，**不改动 `agent_loop.py`**
+> （`examples/hiring_slice_demo.py`，devlog `p0-vertical-slice-hiring`）。它刻意在已就位的接缝之后**桩置**尚未构建之物：
+> 治理写门控 + RBAC（§1.5）、真实威胁扫描（§1.6）、简历**解析**（§1.11）、模型**路由 / 去标识化 / 评测 / 追踪后端**
+> （§1.11）、B 层 **HITL 工作流引擎**（§1.7）、以及数值**匹配打分**（M1）。仅合成简历（真实 PII 外发需 §1.11 去标识化
+> 流水线）。**下方完整 §1.15 仍待完成**——解析真实简历、经 §1.5 治理门控路由、并达成召回 P95 目标——待上述节点落地后。本提前切片是**云 / BYO-key** 变体；**本地模型**端到端（§1.12 路径）、跨会话“召回上次写入”的循环（§1.16 越用越好度量——本切片每次运行在内存中重新 ingest）、以及暴露步骤级**审计**，仍属完整 §1.15。
 
 **What（契约）**：用一条端到端最薄链路证明"管子是通的"——全程本地、无真实决策。
 
@@ -1374,6 +1384,8 @@ PathStep    { order, cap_id, target_level, res_id, kind, blocking_prereq_done∈
 ### 3.2 工作流：启用 `CompositeMemoryProvider`（多 Provider 归并）
 
 > Phase 0 刻意推迟、本阶段触发启用——触发信号正是"员工记忆引入"使并存的专用 Provider ≥ 2。
+>
+> **更新（次序协调）：** §1.4 已落地两个并存的检索 provider（M1 所需的 Candidate + Semantic），故一个**最小** Composite——唯一外部门面、对这两者广播 `prefetch`/归并 + 单播 `sync`——已在 **§1.4** 提前引入。本 §3.2 工作流启用**完整**版本：**Employee** 子 provider、`entity_type` + 查询意图**路由表**、**归并一致性矩阵**强化，以及四个子 provider 的 `backup_paths` 聚合。
 
 **What（契约）**：放宽 Hermes "同一时刻仅一个外部 Provider"的限制（`MemoryManager.add_provider` 原拒绝第二个非 builtin），实现一个**按实体 / 查询路由并归并**多个专用 Provider（Candidate / Employee / Org / Semantic）的组合 Provider。
 
