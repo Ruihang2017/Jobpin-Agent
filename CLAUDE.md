@@ -336,6 +336,9 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 ## 8. Current status & next steps
 
 **Status:**
+- **`main` now holds §1.1 → §1.5** (merged via PRs #3–#6; `origin/main` tip = the §1.5 merge). The
+  per-point "**Not merged**" notes on §1.2–§1.5 below are **historical** (they were written pre-merge).
+  **§1.6 is complete on `phase0/1.6-injection-defence` (off `main`) and is the one point not yet merged.**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
@@ -369,19 +372,31 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   (git-verified). Candidate-ingest path also governed (`validate_entity_ingest`). Triple-reviewed
   (architect **YES**; senior + PM **NO** → all MAJORs fixed: bias word-boundaries, header-leak strip,
   candidate-ingest governance); Plan corrected (EN+中文: enforce-in-provider-write-path wording; read-audit
-  → §1.8); security review (`docs/security/p0-1.5-…`) + bilingual devlog. **38 governance tests; full
-  suite 145 passed, 2 skipped.** **Not merged.** Deferred behind seams: read/recall audit → §1.8; threat
-  scan → §1.6; residual de-id → §1.11; RBAC auth source → §1.9 / PRD open-Q#8.
+  → §1.8); security review (`docs/security/p0-1.5-…`) + bilingual devlog. **38 governance tests.**
+  (Merged to `main` in PR #6.) Deferred behind seams: read/recall audit → §1.8; threat scan → §1.6;
+  residual de-id → §1.11; RBAC auth source → §1.9 / PRD open-Q#8.
+- Phase 0 **§1.6 injection-defence port + pre-compression fact-injection: complete** on
+  `phase0/1.6-injection-defence` (off `main`); **one cohesive cycle** (owner opted in). Ported
+  `security/threat_patterns` (3 scopes) + `security/scrubber` (StreamingContextScrubber) from Hermes
+  (THIRD_PARTY_NOTICES + own security review); `security/external_ingest` (scan+fence door); `core/compression`
+  (`ContextCompressor` + `SessionStore.compact`) wiring the captured `on_pre_compress` into the summary
+  (fixing the Hermes "discarded return" gap) + best-effort §1.5-gated persist. **First sanctioned
+  `agent_loop.py` change since §1.1** — a minimal opt-in `compressor` call at `run_turn` top; **frozen
+  system-prompt snapshot untouched** (golden snapshot green). Real **strict** scan now defaults into the
+  curated-store seam; **fail-safe `context` scan defaults** into the candidate/semantic memory sinks.
+  Triple-reviewed (senior **YES** — AST-verified the ports byte-identical; architect **YES** +1 MAJOR; PM
+  **YES**-conditional +2 MAJORs → all fixed: fail-safe candidate/semantic scan, lossy-summariser proof,
+  file-backed seam-level reconciliation); Plan corrected (EN+中文: file-backed matrix row → seam-level +
+  summariser-seam note). **30 §1.6 tests; full suite 175 passed, 2 skipped.** **Not merged.** Deferred
+  behind seams: real lossy LLM summariser + streaming model path + live résumé-ingest door + conversation
+  content-extraction → §1.11; full 1000-adversarial corpus → later; C2-pattern tuning for technical CVs → ongoing.
 
-**Branch:** `phase0/1.5-memory-governance` (off `vertical-slice-hiring` off `1.4` off `1.3` off `1.2` off `main`).
-`main` now holds through §1.2 (PR #4). Merge order for the rest: **§1.3 → §1.4 → vertical-slice → §1.5**
-(all stacked; §1.3 has no own remote branch but its commits ride inside §1.4/slice/§1.5).
+**Branch:** `phase0/1.6-injection-defence` (off `main`, which holds §1.1–§1.5).
 
 **Immediate next steps:**
-1. **Land the chain:** owner merges the remaining stack into `main` in order (kept gate; auto-deploys
-   Netlify). Because the branches are stacked, merging `§1.4 → main` carries §1.3; `vertical-slice → main`
-   carries the slice; `§1.5 → main` carries §1.5.
-2. **Next planned point — §1.6 (injection defence + pre-compression wiring):** port `threat_patterns`
-   (real `scan_entry`), wire the `on_pre_compress` fact-injection (the gap Hermes leaves unwired), and
-   route the pre-compression persist through the §1.5 `GovernanceGate`. (§1.8 = canonical data model +
-   read-audit; §1.9 = security baseline reusing `rbac.scope_predicate`; §1.11 = router + de-id + parsing.)
+1. **Land §1.6:** owner merges `phase0/1.6-injection-defence → main` (kept gate; auto-deploys Netlify).
+2. **Next planned point — §1.7 (Layer B long-running orchestration skeleton):** the in-house lightweight
+   hiring-loop state machine (cross-day, multi-party, resumable) — net-new Layer B (PRD §2.6), not a Hermes
+   port. (Then §1.8 = canonical data model + the read/recall audit deferred from §1.5/§1.6; §1.9 = security
+   baseline reusing `rbac.scope_predicate`; §1.11 = model router + de-id + résumé parsing + streaming + the
+   real lossy LLM summariser — which consumes the §1.6 `summarize_fn` / scrubber / `external_ingest` seams.)
