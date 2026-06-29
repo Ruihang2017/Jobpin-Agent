@@ -348,20 +348,29 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   deferred to §1.5**.
 - Phase 0 **§1.4 vector store + Candidate/Semantic providers (+ minimal Composite): complete** on
   `phase0/1.4-vector-entity-providers` (off `phase0/1.3-…`); **one big cycle** (owner opted in), built
-  in independently-tested layers; **104 tests pass, 1 skipped**; triple-reviewed (all three **YES**;
-  two MAJORs fixed — Semantic filter-before-NN + the rerank seam); Plan corrected (EN+中文: minimal
-  Composite brought forward from §3.2); security review (`docs/security/p0-1.4-…`) + bilingual devlog.
-  **Not merged.** Dependency-light (stdlib vector store, hashing embedder); heavy backends + governance
-  behind seams (real backend → §1.12, embedder → config, write-gate/RBAC → §1.5, threat scan → §1.6).
+  in independently-tested layers; triple-reviewed (all three **YES**; two MAJORs fixed — Semantic
+  filter-before-NN + the rerank seam); Plan corrected (EN+中文: minimal Composite brought forward from
+  §3.2); security review + bilingual devlog. **Not merged.** Heavy backends + governance behind seams
+  (real backend → §1.12, embedder → config, write-gate/RBAC → §1.5, threat scan → §1.6).
+- **Thin hiring vertical slice (real LLM): complete** on `phase0/vertical-slice-hiring` (off
+  `phase0/1.4-…`) — a **pull-forward of §1.15** (owner asked for a bigger, *visible* step). Ingest
+  synthetic résumés → a **real OpenAI model** recalls candidates (semantic, via a new `openai_embedder`
+  behind the `EmbedFn` seam) and returns an explainable, **cited**, **HITL-framed** shortlist — **no
+  `agent_loop.py` change**. **107 tests pass, 2 skipped** (the 2 skips are the money-safe opt-in real
+  tests); triple-reviewed (all three **YES**); Plan §1.15 note (EN+中文) records the reorder + stubs;
+  bilingual devlog (`p0-vertical-slice-hiring`) with the **captured real-model run**. **Not merged.**
+  Verified live against `gpt-4o-mini`: recalled Ada+Grace, cited evidence, excluded the sales candidate.
+  Governance/scan/parsing/router/de-id stay stubbed behind the seams (→ §1.5/§1.6/§1.11).
 
-**Branch:** `phase0/1.4-vector-entity-providers` (off `phase0/1.3-…`, off `phase0/1.2-…`, off `main`).
-Merge order: **§1.2 → §1.3 → §1.4**.
+**Branch:** `phase0/vertical-slice-hiring` (off `phase0/1.4-…` off `1.3` off `1.2` off `main`).
+Merge order: **§1.2 → §1.3 → §1.4 → vertical-slice**.
 
 **Immediate next steps:**
-1. **Land §1.2 → §1.3 → §1.4:** owner merges the chain into `main` in order (kept gate; auto-deploys
-   Netlify).
-2. **Next point — §1.5 (HR memory governance):** the linchpin compliance point — the write-gate (reject
+1. **Land the chain:** owner merges `§1.2 → §1.3 → §1.4 → vertical-slice` into `main` in order (kept
+   gate; auto-deploys Netlify).
+2. **Next planned point — §1.5 (HR memory governance):** still the next *planned* point (the slice was
+   an out-of-order, sanctioned pull-forward). The linchpin compliance point — the write-gate (reject
    writes lacking provenance/consent labels), RBAC `scope_filter`, the erasure pipeline over the §1.4
-   cascade mechanism, and the model-facing `memory` **write tool** born governed. The §1.4 seams
-   (`write_gate`/`scope_filter`) are already wired for it. Same per-point cycle (§5). (§1.6 = injection
-   defence behind the `scan_entry` seam; §1.12 = vector-backend spike — both also teed up by §1.4.)
+   cascade mechanism, and the model-facing `memory` **write tool** born governed. The §1.4/slice seams
+   (`write_gate`/`scope_filter`/`scan_entry`) are already wired for it. (§1.6 = injection defence; §1.11
+   = model router + de-identification + résumé parsing — which upgrades the slice to the full §1.15.)

@@ -45,7 +45,7 @@ from jobpin_agent.core.session_store import SessionStore
 from jobpin_agent.core.system_prompt import SystemPromptParts
 from jobpin_agent.core.tools import ToolRegistry
 from jobpin_agent.core.tracing import Tracer
-from jobpin_agent.memory.embedding import hashing_embedder, openai_embedder
+from jobpin_agent.memory.embedding import embed_version, hashing_embedder, openai_embedder
 from jobpin_agent.memory.manager import MemoryManager
 from jobpin_agent.memory.manager_hooks import MemoryManagerHooks
 from jobpin_agent.memory.providers.candidate import CandidateMemoryProvider
@@ -55,6 +55,8 @@ from jobpin_agent.memory.structured import CandidateRow, CandidateStructuredStor
 from jobpin_agent.memory.vector.store import SqliteVectorStore
 
 ADA_KEY = "acme:apac:candidate:cand_ada"
+# Self-describing pin for the OpenAI vector space (text-embedding-3-small is always 1536-d here).
+OPENAI_EMBED_VERSION = embed_version("openai-text-embedding-3-small", 1536)
 
 # Synthetic résumés (NOT real people). The distinctive content lives in the PROSE, not the columns —
 # so a fitting recall must come from the vector store, which the structured columns could not answer.
@@ -150,11 +152,17 @@ def run(question: str, *, embed_fn, embed_version, model) -> dict:
         embed_fn=embed_fn, embed_version=embed_version, model=model)
     recall = hooks.prefetch(question, sid)  # the inner block the loop will fence into the prompt
     result = agent.run_turn(sid, question)
+    # Surface the step-level trace (§1.15 wants tracing visible), like chat.py.
+    steps = [e.kind for e in agent.tracer.events]
+    tokens = sum((e.data.get("usage") or {}).get("total_tokens") or 0
+                 for e in agent.tracer.events if e.kind == "model_call")
     return {
         "answer": result.text,
         "recalled_candidate": ADA_KEY in recall,
         "has_citation": "source:" in recall,
         "recall": recall,
+        "steps": steps,
+        "tokens": tokens,
     }
 
 
@@ -170,7 +178,7 @@ def main() -> None:  # pragma: no cover
     config = CoreConfig.from_env()
     if config.openai_api_key:
         embed_fn = openai_embedder(api_key=config.openai_api_key)
-        embed_version = "openai:text-embedding-3-small"
+        embed_version = OPENAI_EMBED_VERSION
         model = OpenAIProvider(config)
         mode = f"REAL OpenAI ({config.model_id} + text-embedding-3-small)"
     else:
@@ -185,7 +193,8 @@ def main() -> None:  # pragma: no cover
     print(f"Q: {QUESTION}\n")
     print(f"Recalled into the prompt (<memory-context>):\n{out['recall']}\n")
     print(f"Agent answer:\n{out['answer']}\n")
-    print(f"[recalled the fitting candidate={out['recalled_candidate']}  has_citation={out['has_citation']}]")
+    print(f"[recalled the fitting candidate={out['recalled_candidate']}  has_citation={out['has_citation']}"
+          f"  steps={out['steps']}  tokens={out['tokens']}]")
 
 
 if __name__ == "__main__":  # pragma: no cover

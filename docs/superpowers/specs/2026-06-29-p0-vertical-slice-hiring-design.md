@@ -52,7 +52,7 @@ default is unchanged (PRD §1/§7/G7); this is an opt-in dev/pilot path using th
 - `memory/embedding.py` — add **`openai_embedder(model="text-embedding-3-small", api_key=None, client=None) -> EmbedFn`**
   (lazy OpenAI client; one `embeddings.create` per call) + keep `hashing_embedder` the default. The
   production embedder *selection/config* remains §1.11/§1.4-real; this is the real option behind the seam.
-- `examples/hiring_slice_demo.py` — `build_hiring_slice(*, embed_fn, embed_version, model) -> (agent, store, sid)`
+- `examples/hiring_slice_demo.py` — `build_hiring_slice(*, embed_fn, embed_version, model) -> (agent, store, sid, manager, hooks)`
   (injectable for tests) + `run(question, *, embed_fn, embed_version, model) -> dict` + `main()` (picks
   real-vs-fake by key presence) + the synthetic résumé fixtures + the HR `SystemPromptParts`.
 - `agent/tests/test_hiring_slice.py` — deterministic wiring tests (fake model + `hashing_embedder`).

@@ -14,7 +14,7 @@ from jobpin_agent.core.messages import ModelResponse
 from jobpin_agent.core.model.fake_provider import FakeProvider
 from jobpin_agent.memory.embedding import hashing_embedder, openai_embedder
 
-from examples.hiring_slice_demo import ADA_KEY, QUESTION, build_hiring_slice, run
+from examples.hiring_slice_demo import ADA_KEY, OPENAI_EMBED_VERSION, QUESTION, build_hiring_slice, run
 
 # A query with strong lexical overlap with cand_ada's PROSE, so the fake (lexical) embedder recalls her
 # deterministically. (The real semantic embedder handles the looser QUESTION; that's the opt-in test.)
@@ -74,6 +74,6 @@ def test_real_openai_hiring_slice():  # pragma: no cover - opt-in, not run in CI
 
     config = CoreConfig.from_env()
     out = run(QUESTION, embed_fn=openai_embedder(api_key=config.openai_api_key),
-              embed_version="openai:text-embedding-3-small", model=OpenAIProvider(config))
+              embed_version=OPENAI_EMBED_VERSION, model=OpenAIProvider(config))
     assert out["answer"] and len(out["answer"]) > 20
     assert any(name in out["answer"] for name in ("Ada", "Grace"))
