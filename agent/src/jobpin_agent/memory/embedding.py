@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from typing import Callable, List
+from typing import Any, Callable, List, Optional
 
 # The injectable embedder contract: text -> a (normalised) vector.
 EmbedFn = Callable[[str], List[float]]
@@ -87,6 +87,51 @@ def hashing_embedder(dim: int = 256) -> EmbedFn:
         if norm == 0.0:
             return vec
         return [x / norm for x in vec]
+
+    return embed
+
+
+def openai_embedder(
+    model: str = "text-embedding-3-small",
+    api_key: Optional[str] = None,
+    client: Any = None,
+) -> EmbedFn:
+    """Build a REAL semantic embedder behind the ``EmbedFn`` seam (OpenAI; opt-in).
+
+    EN —
+    Returns an ``EmbedFn`` that calls OpenAI's embeddings API, so recall becomes **semantic**
+    (a query for "distributed systems" matches "sharded event pipeline") rather than the lexical
+    overlap of the ``hashing_embedder`` default. The OpenAI client is created **lazily** on the first
+    call (no network or key needed at construction, so this is safe to import/build in tests); pass a
+    pre-built ``client`` to inject a fake. This is the real *option* behind the seam — NOT the default,
+    and not the production selection/config (model routing + provider choice are §1.11). Sending text
+    to OpenAI is a cloud call (BYO-key); real PII must first go through de-identification (§1.11).
+    Args: model (embedding model id); api_key (else the client/env supplies it); client (inject a fake).
+    Returns: an ``EmbedFn`` (``str -> list[float]``).
+
+    中文 —
+    返回一个调用 OpenAI 嵌入 API 的 ``EmbedFn``，使召回变为**语义**（查询 "distributed systems" 可匹配
+    "sharded event pipeline"），而非 ``hashing_embedder`` 默认的词面重叠。OpenAI 客户端在首次调用时**延迟**创建
+    （构造时无需网络或密钥，故测试中可安全导入/构建）；传入预构建的 ``client`` 可注入伪对象。这是接缝背后的真实*选项*
+    ——并非默认，也非生产选型/配置（模型路由 + provider 选择属 §1.11）。向 OpenAI 发送文本是云调用（BYO-key）；
+    真实 PII 须先经去标识化（§1.11）。
+    参数：model（嵌入模型 id）；api_key（否则由 client/环境提供）；client（注入伪对象）。
+    返回：一个 ``EmbedFn``（``str -> list[float]``）。
+    """
+    state: dict = {"client": client}
+
+    def embed(text: str) -> List[float]:
+        """Embed one string via OpenAI (lazily building the client on first use).
+
+        EN: Args: text. Returns: the embedding vector (list of floats).
+        中文：参数：text。返回：嵌入向量（浮点列表）。
+        """
+        c = state["client"]
+        if c is None:
+            from openai import OpenAI  # imported lazily so construction needs no key/network
+
+            c = state["client"] = OpenAI(api_key=api_key)
+        return list(c.embeddings.create(model=model, input=text).data[0].embedding)
 
     return embed
 
