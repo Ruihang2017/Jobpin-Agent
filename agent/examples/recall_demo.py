@@ -52,16 +52,29 @@ def run_demo() -> dict:
     embed = hashing_embedder(DIM)
     ver = embed_version("hash", DIM)
 
+    # The point of the vector store: the distinctive content of the query
+    # ("globally-distributed ledger", "mentored engineers") lives ONLY in this
+    # candidate's résumé PROSE — the structured columns hold just skills=["go","kafka"],
+    # location, years. So the recall below comes from the VECTOR store, not the
+    # relational store, which could never answer it.
+    # Caveat: the §1.4 default embedder is a LEXICAL hashing vectoriser, so the query
+    # must share words with the prose; a real semantic embedder (BGE/OpenAI behind
+    # EmbedFn — §1.12/config) would also match a paraphrase like "distributed systems
+    # at scale" that shares no literal words with the résumé.
     candidate = CandidateMemoryProvider(SqliteVectorStore(), CandidateStructuredStore(), embed,
                                         embed_model="hash", embed_version=ver, k=3)
     candidate.ingest(
-        CandidateRow(KEY, name="Ada Lovelace", skills=["python", "distributed"], years=7, work_rights=True),
-        [(f"{KEY}#0", "Senior Python engineer; designed distributed systems at scale."),
-         (f"{KEY}#1", "Led a Kubernetes platform migration.")],
+        CandidateRow(KEY, name="Ada Lovelace", skills=["go", "kafka"], years=7,
+                     location="Sydney", work_rights=True, consent_status="granted"),
+        [(f"{KEY}#0",
+          "Architected a globally-distributed, eventually-consistent ledger processing two million "
+          "transactions per second; migrated a monolith to event-driven microservices; mentored four "
+          "engineers and led the on-call culture overhaul."),
+         (f"{KEY}#1", "Drove the platform's multi-region failover and disaster-recovery design.")],
     )
     candidate.ingest(
-        CandidateRow("acme:apac:candidate:cand_b2", name="Bo", skills=["sales"], years=4),
-        [("acme:apac:candidate:cand_b2#0", "Enterprise sales lead, quota over-achiever.")],
+        CandidateRow("acme:apac:candidate:cand_b2", name="Bo", skills=["salesforce"], years=4),
+        [("acme:apac:candidate:cand_b2#0", "Enterprise sales lead and quota over-achiever in fintech.")],
     )
 
     semantic = SemanticRAGProvider(SqliteVectorStore(), embed, embed_model="hash", embed_version=ver, k=2)
@@ -76,10 +89,11 @@ def run_demo() -> dict:
     parts = SystemPromptParts(memory_snapshot="", provider_block=manager.build_system_prompt())
     store = SessionStore(":memory:")
     sid = store.create_session()
-    model = FakeModel(script=[ModelResponse(text="Ada Lovelace is the strongest match.")])
+    model = FakeModel(script=[ModelResponse(text="Ada Lovelace — globally-distributed ledger + mentoring — is the strongest match.")])
     agent = Agent(model, ToolRegistry(), store, hooks=hooks, parts=parts)
 
-    result = agent.run_turn(sid, "find a python distributed-systems engineer")
+    # Query words hit the résumé PROSE (vector store), not the structured columns (go/kafka).
+    result = agent.run_turn(sid, "who built a globally-distributed ledger and mentored engineers?")
     sent = "\n".join(m.content for m in model.calls[0])
     return {
         "recall_in_prompt": KEY in sent,

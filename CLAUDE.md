@@ -274,6 +274,11 @@ them stale:
   5. **Key mechanisms / algorithms** — step by step, **with the actual key code snippets** for the
      non-obvious logic (the parts a reader can't guess). For a port, show **what was copied vs adapted**.
   6. **Design decisions & why** — the choices, trade-offs, rationale (for ports: what changed vs Hermes).
+     **Include the conceptual purpose of each component in product terms** — *why it exists and what it's
+     for*, not only its mechanics/schema (e.g. "why a vector store alongside the relational store, and
+     what each holds that the other can't"). If the implementation does **not yet** demonstrate that
+     value (a stubbed seam, a fake default, a toy demo), say so plainly — an honest "what this does NOT
+     yet show, and what would make it real" beats an overclaim.
   7. **Seams & deferrals** — what is injected/stubbed now (the **seam signature + default**) and exactly
      where/when the real implementation lands.
   8. **Tests & acceptance** — the **actual test cases** (`test_name` → what each proves), mapped to the
