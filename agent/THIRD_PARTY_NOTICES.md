@@ -74,6 +74,27 @@ behind injected seams: the real vector backend (sqlite-vec/LanceDB, §1.12), the
 (BGE/OpenAI, config), the governance write gate (§1.5), and RBAC (§1.5). No new third-party dependency
 (stdlib only). No substantial Hermes code is copied at §1.4.
 
+## §1.5 HR memory governance — provenance (NEW CODE; net-new, Hermes lacks governance)
+
+§1.5 (`governance/*` + the governed `memory` write tool on `memory/providers/builtin.py`) is **new code** —
+Hermes has no memory-governance layer. It consumes the §1.2–1.4 seams. No Hermes code is copied at §1.5;
+no new third-party dependency (stdlib only).
+
+## §1.6 Injection-defence port — provenance (PORTED CODE — MIT, see notice below)
+
+| Jobpin file | Hermes source | Strategy |
+|---|---|---|
+| `src/jobpin_agent/security/threat_patterns.py` | `tools/threat_patterns.py::{_PATTERNS, INVISIBLE_CHARS, scan_for_threats, first_threat_message}` | **Port** (patterns + logic verbatim) |
+| `src/jobpin_agent/security/scrubber.py` | `agent/memory_manager.py::StreamingContextScrubber` | **Port** (state machine verbatim) |
+
+Adaptations: docstrings made bilingual + a port-origin note added; `INVISIBLE_CHARS` given as explicit
+codepoints (no literal invisible char in source) — the set is identical. The pattern regexes, the three
+scopes (`all`/`context`/`strict`), the `(?:\w+\s+)*` multi-word-bypass guard, the C2-vocabulary anchoring,
+and the scrubber's cross-chunk state machine are **unchanged**. New (not ported): `security/external_ingest.py`
+(scan + fence door) and `core/compression.py` (the pre-compression fact-injection wiring Hermes leaves
+unwired). Transitive deps: stdlib only (`re`). The MIT copyright + licence text below is retained for these
+copied portions.
+
 ---
 
 MIT License
