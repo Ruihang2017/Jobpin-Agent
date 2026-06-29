@@ -42,7 +42,7 @@ from jobpin_agent.core.messages import ModelResponse
 from jobpin_agent.core.model.fake_provider import FakeProvider
 from jobpin_agent.core.model.openai_provider import OpenAIProvider
 from jobpin_agent.core.session_store import SessionStore
-from jobpin_agent.core.system_prompt import SystemPromptParts
+from jobpin_agent.core.system_prompt import SystemPromptParts, build_system_prompt
 from jobpin_agent.core.tools import ToolRegistry
 from jobpin_agent.core.tracing import Tracer
 from jobpin_agent.memory.embedding import embed_version, hashing_embedder, openai_embedder
@@ -150,6 +150,10 @@ def run(question: str, *, embed_fn, embed_version, model) -> dict:
     """
     agent, store, sid, manager, hooks = build_hiring_slice(
         embed_fn=embed_fn, embed_version=embed_version, model=model)
+    # The assembled system prompt the model receives (HR framing + slots). Tools are empty here, so
+    # this matches the loop's per-turn assembly exactly; the per-turn recall rides a SEPARATE
+    # <memory-context> message (see `recall` below), not this frozen system prompt.
+    system_prompt = build_system_prompt(agent.parts)
     recall = hooks.prefetch(question, sid)  # the inner block the loop will fence into the prompt
     result = agent.run_turn(sid, question)
     # Surface the step-level trace (§1.15 wants tracing visible), like chat.py.
@@ -158,6 +162,7 @@ def run(question: str, *, embed_fn, embed_version, model) -> dict:
                  for e in agent.tracer.events if e.kind == "model_call")
     return {
         "answer": result.text,
+        "system_prompt": system_prompt,
         "recalled_candidate": ADA_KEY in recall,
         "has_citation": "source:" in recall,
         "recall": recall,
@@ -191,7 +196,8 @@ def main() -> None:  # pragma: no cover
     print(f"Mode: {mode}\n")
     out = run(QUESTION, embed_fn=embed_fn, embed_version=embed_version, model=model)
     print(f"Q: {QUESTION}\n")
-    print(f"Recalled into the prompt (<memory-context>):\n{out['recall']}\n")
+    print(f"System prompt (assembled — what the model received, before the recall):\n{out['system_prompt']}\n")
+    print(f"Recalled into the prompt (separate <memory-context> message):\n{out['recall']}\n")
     print(f"Agent answer:\n{out['answer']}\n")
     print(f"[recalled the fitting candidate={out['recalled_candidate']}  has_citation={out['has_citation']}"
           f"  steps={out['steps']}  tokens={out['tokens']}]")

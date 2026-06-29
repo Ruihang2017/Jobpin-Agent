@@ -147,7 +147,7 @@ evidence, and flag this as a suggestion for human review.”* 语义召回返回
 三位评审（资深工程师 / 架构师 / 产品经理）均返回 **YES**（正确 + 安全；`core/` 经 git 验证未改；推迟诚实；
 reorder 已记录 EN+中文）。无 blocker/major——“major”为待完成的**文档步骤**（本 devlog + `CLAUDE.md` §8 状态），现已完成。
 所做修复：
-- 在 `run()`/`main()` 中**暴露追踪**（`steps` + `tokens`）（产品：追踪已接但不可见）。
+- 在 `run()`/`main()` 中**暴露已装配的系统提示 + 追踪**（`system_prompt`、`steps`、`tokens`）——demo 现在打印模型收到的完整 HR 系统提示（不只是召回），外加步骤/token 追踪（产品：追踪已接但不可见）。
 - 经 `embed_version("openai-text-embedding-3-small", 1536)` 助手获得**自描述 embed_version**（原为裸字符串）。
 - 在此**捕获真实运行**（产品：唯有记录真实密钥运行，进展才*可见*）。
 - 更新 `agent/examples/README.md`（本演示 + 缺失的 §1.2/§1.4 演示）；§1.15 说明现区分**云/BYO-key** 变体与仍需的**本地模型**端到端；修正规格元组。

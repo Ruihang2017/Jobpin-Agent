@@ -30,6 +30,7 @@ def test_slice_recalls_candidate_with_citation_offline():
               model=FakeProvider(script=[ModelResponse(text="Ada Lovelace looks strongest — suggestion for human review.")]))
     assert out["recalled_candidate"] is True
     assert out["has_citation"] is True
+    assert "human confirmation" in out["system_prompt"]  # the assembled HR/HITL framing is captured
 
 
 def test_model_sees_hr_framing_and_fenced_recall_offline():

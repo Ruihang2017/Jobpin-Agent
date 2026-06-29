@@ -155,7 +155,7 @@ and **excluded the sales candidate (Bo)** — exactly the grounded, HITL behavio
 All three reviewers (senior engineer / architect / PM) returned **YES** (correct + safe; `core/` untouched
 git-verified; deferrals honestly scoped; reorder recorded EN+中文). No blockers/majors — the "majors" were
 the pending **document step** (this devlog + the `CLAUDE.md` §8 status), now done. Applied fixes:
-- **Surfaced the trace** (`steps` + `tokens`) in `run()`/`main()` (PM: tracing was wired but invisible).
+- **Surfaced the assembled system prompt + the trace** (`system_prompt`, `steps`, `tokens`) in `run()`/`main()` — the demo now prints the full HR system prompt the model received (not just the recall), plus the step/token trace (PM: tracing was wired but invisible).
 - **Self-describing embed_version** via the `embed_version("openai-text-embedding-3-small", 1536)` helper (was a bare string).
 - **Captured the real run** here (PM: progress is only *visible* if a real-key run is recorded).
 - **`agent/examples/README.md`** updated (this demo + the §1.2/§1.4 demos that were missing); the §1.15 note now distinguishes the **cloud/BYO-key** variant from the still-required **local-model** end-to-end; spec tuple corrected.
