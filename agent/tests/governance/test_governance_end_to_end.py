@@ -24,6 +24,7 @@ from jobpin_agent.governance.audit import AuditLog
 from jobpin_agent.governance.rbac import Principal, scope_predicate
 from jobpin_agent.governance.tool_bridge import build_memory_tool
 from jobpin_agent.governance.write_gate import GovernanceGate
+from jobpin_agent.memory.composition import build_memory_backend
 from jobpin_agent.memory.embedding import hashing_embedder
 from jobpin_agent.memory.manager import MemoryManager
 from jobpin_agent.memory.manager_hooks import MemoryManagerHooks
@@ -79,3 +80,42 @@ def test_governed_tool_through_loop(tmp_path):
     assert result.text and not result.stopped
     assert "key: acme:apac:org:policy" in "\n".join(store._entries["org"])
     assert gate.audit.query(action="write:add")[-1].result == "ok"
+
+
+def test_candidate_ingest_is_governed():
+    """A candidate ingest with a governance gate rejects withdrawn consent and accepts a granted one.
+
+    EN: closes the "candidate PII write path is ungoverned" gap (PM review). 中文：堵住“候选人 PII 写路径未受治理”缺口。
+    """
+    gate = GovernanceGate(AuditLog())
+    provider = CandidateMemoryProvider(
+        SqliteVectorStore(), CandidateStructuredStore(), hashing_embedder(256), embed_version="hash@256",
+        governance=gate, actor="dpo:bob")
+    withdrawn = provider.ingest(CandidateRow("acme:apac:candidate:w", name="W", consent_status="withdrawn"),
+                                [("acme:apac:candidate:w#0", "python reliability")])
+    assert withdrawn["success"] is False and withdrawn["rejected"] == "no_consent"
+    granted = provider.ingest(CandidateRow("acme:apac:candidate:g", name="G", consent_status="granted"),
+                              [("acme:apac:candidate:g#0", "python reliability")])
+    assert granted["success"] is True
+    assert gate.audit.query(action="write:ingest")[-1].result == "rejected:no_consent"
+
+
+def test_governance_header_stripped_from_snapshot(tmp_path):
+    """A governed write lands a headered entry on disk, but the model-facing snapshot strips the header.
+
+    EN — closes Architect M1: governance metadata (consent_id/collected_by) must not leak into the
+    frozen system-prompt snapshot. 中文 — 堵住架构 M1：治理元数据不得渗入冻结系统提示快照。
+    """
+    import json
+    backend = build_memory_backend(str(tmp_path), gate=GovernanceGate(AuditLog()), actor="recruiter:alice")
+    out = json.loads(backend.manager.handle_tool_call("memory", {
+        "action": "add", "target": "org", "content": "weight reliability experience",
+        "source_type": "recruiter_input", "source_ref": "rubric#1", "legal_basis": "legitimate_interest"}))
+    assert out["success"] is True
+    # On disk the entry carries the header (100% labelled)...
+    assert "key: acme:apac:org:policy" in "\n".join(backend.store._entries["org"])
+    backend.store.load_from_disk()  # re-freeze the snapshot from disk (next-session behaviour)
+    snapshot = backend.memory_snapshot()
+    # ...but the model-facing snapshot shows the body, not the governance header.
+    assert "weight reliability experience" in snapshot
+    assert "collected_by:" not in snapshot and "consent_id:" not in snapshot and "key: acme" not in snapshot

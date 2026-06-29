@@ -16,6 +16,7 @@ such writes).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 # Source types that require a per-subject consent_id (APP 3/5/6); others rely on legitimate_interest/contract.
@@ -24,6 +25,15 @@ CONSENT_REQUIRED_SOURCE_TYPES = frozenset({"candidate_submitted", "candidate_vol
 LEGAL_BASES = frozenset({"consent", "legitimate_interest", "contract"})
 # The line that separates the header from the body inside one entry.
 _HEADER_SEP = "---"
+# Matches a whole governance header block (``key:`` line → its label lines → the ``---`` line) anywhere in
+# a string, so the header can be stripped from any model-facing render (snapshot / recall) while it stays
+# on disk for the governance layer. Used by ``strip_governance_headers``.
+_HEADER_BLOCK_RE = re.compile(
+    r"^key:.*\n"
+    r"(?:(?:source_type|source_ref|collected_at|collected_by|legal_basis|consent_id|purpose|retention_ttl):.*\n)*"
+    r"---\n",
+    re.MULTILINE,
+)
 
 
 @dataclass
@@ -128,3 +138,22 @@ def parse_header(entry: str):
             key, _colon, value = line.partition(":")
             labels[key.strip()] = value.strip()
     return labels, body
+
+
+def strip_governance_headers(text: str) -> str:
+    """Remove every governance header block from a model-facing render (keep the bodies).
+
+    EN —
+    The in-entry governance header is metadata for the governance layer (Plan §1.2), NOT model content,
+    and would otherwise bleed into the frozen system-prompt snapshot (and the curated char budget). This
+    strips each header block (``key:`` line through its ``---``) wherever it appears, leaving any render
+    chrome and the entry bodies intact. The header stays on disk for validation / back-linking.
+    Args: text (a rendered snapshot/recall block, possibly containing several headered entries).
+    Returns: the text with governance headers removed.
+
+    中文 —
+    条目内治理头是治理层的元数据（计划 §1.2），并非模型内容，否则会渗入冻结的系统提示快照（及策展字符预算）。本函数
+    剥除每个头块（``key:`` 行至其 ``---``），无论其出现在何处，保留任何渲染外框与条目正文。头仍留在磁盘上供校验/回链。
+    参数：text（渲染后的快照/召回块，可能含多条带头条目）。返回：移除治理头后的文本。
+    """
+    return _HEADER_BLOCK_RE.sub("", text)

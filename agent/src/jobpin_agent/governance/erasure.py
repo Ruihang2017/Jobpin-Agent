@@ -70,12 +70,25 @@ class Eraser:
         §1.4 provider 的 ``delete``）；now_days / ages_out_at_days（备份老化窗口）。返回：``{"deleted": <计数>, "audit":
         "ok"}``。缓存清理失败被吞（尽力而为；删除 + 审计为权威）。
         """
-        deleted = deleter(memory_key)
+        try:
+            deleted = deleter(memory_key)
+        except Exception as exc:
+            # A failed/partial delete MUST still leave a forensic trace (no silent loss of the attempt).
+            self._audit.record(actor, "erase", memory_key,
+                               reason=f"{reason} | deleter failed: {exc}", result="rejected:error")
+            raise
+        clear_errors = []
         for clear in self._clearers:
             try:
                 clear()
-            except Exception:
-                pass
-        self._audit.record(actor, "erase", memory_key, reason=f"{reason} | deleted={deleted}", result="ok")
+            except Exception as exc:
+                clear_errors.append(str(exc))
+        # If a cache failed to clear, the subject could still be recalled — record that in the trail
+        # rather than reporting a clean "ok".
+        result = "ok" if not clear_errors else "ok:cache_warn"
+        note = f"{reason} | deleted={deleted}"
+        if clear_errors:
+            note += f" | cache_clear_errors={clear_errors}"
+        self._audit.record(actor, "erase", memory_key, reason=note, result=result)
         self._register.register(memory_key, erased_at_days=now_days, ages_out_at_days=ages_out_at_days)
-        return {"deleted": deleted, "audit": "ok"}
+        return {"deleted": deleted, "audit": result, "cache_errors": clear_errors}

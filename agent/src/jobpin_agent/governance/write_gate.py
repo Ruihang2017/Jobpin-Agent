@@ -76,7 +76,7 @@ class GovernanceGate:
         """
         if action == "remove":
             return Decision(ok=True)
-        if not prov.source_ref:
+        if not prov.source_ref or not prov.source_type:
             self.audit.record(actor, f"write:{action}", target_key, result="rejected:no_provenance")
             return Decision(False, "rejected:no_provenance")
         if prov.source_type in CONSENT_REQUIRED_SOURCE_TYPES and not consent.consent_id:
@@ -87,3 +87,34 @@ class GovernanceGate:
             self.audit.record(actor, f"write:{action}", target_key, reason=finding.reason, result=finding.code)
             return Decision(False, finding.code)
         return Decision(True, header=render_header(prov, consent, retention_key))
+
+    def validate_entity_ingest(self, memory_key: str, consent_status: str, source_refs, *, actor: str) -> Decision:
+        """Pre-check an entity (candidate/employee) ingest: require provenance + granted consent.
+
+        EN —
+        The candidate/entity write path has no model tool, so its governance is enforced here at ingest
+        (Production Plan §1.5 "100% of written memory carries provenance + a lawful-basis label"). Bias
+        hygiene is deliberately NOT run on entity content — rejecting a résumé because it contains
+        "female"/"age" would itself be discriminatory; bias hygiene targets recruiter-bar calibration
+        (PRD §9.4/§9.5), not candidate data. The full consent-capture + de-identification pipeline is
+        §1.11; §1.5 enforces the gate over the existing ingest seam.
+        Args: memory_key; consent_status (e.g. "granted"/"withdrawn"/"unknown"); source_refs (the chunk
+        provenance pointers — at least one non-empty required); actor. Returns: a ``Decision`` (rejection
+        is audited as ``write:ingest`` / ``rejected:no_provenance`` | ``rejected:no_consent``).
+
+        中文 —
+        候选人/实体写路径没有模型工具，故其治理在此于 ingest 强制（生产计划 §1.5“100% 写入携带来源 + 合法依据标签”）。
+        刻意**不**对实体内容运行偏见卫生——因简历含 "female"/"age" 而拒绝本身即构成歧视；偏见卫生针对招聘“标尺”校准
+        （PRD §9.4/§9.5），而非候选人数据。完整的同意采集 + 去标识化流水线为 §1.11；§1.5 在既有 ingest 接缝上强制门控。
+        参数：memory_key；consent_status（如 "granted"/"withdrawn"/"unknown"）；source_refs（片段来源指针——至少一个
+        非空）；actor。返回：``Decision``（拒绝记为 ``write:ingest`` / ``rejected:no_provenance`` | ``rejected:no_consent``）。
+        """
+        refs = list(source_refs or [])
+        if not refs or not all(refs):
+            self.audit.record(actor, "write:ingest", memory_key, result="rejected:no_provenance")
+            return Decision(False, "rejected:no_provenance")
+        if consent_status != "granted":
+            self.audit.record(actor, "write:ingest", memory_key,
+                              reason=f"consent_status={consent_status}", result="rejected:no_consent")
+            return Decision(False, "rejected:no_consent")
+        return Decision(True)

@@ -30,3 +30,23 @@ def test_clean_text_passes():
     EN: None. 中文：None。
     """
     assert scan("Strong distributed-systems and reliability experience; mentored engineers.") is None
+
+
+def test_benign_words_embedding_a_token_do_not_false_positive():
+    """Common HR words that merely embed a protected token must NOT trip the scanner (word boundaries).
+
+    EN — regression for the substring-matching bug: "age" in management/manager/language/coverage,
+    "race" in grace/embrace. These are exactly the words the gate must let through.
+    中文 — 子串匹配缺陷的回归：management/manager/language/coverage 含 "age"，grace/embrace 含 "race"。这些正是门控
+    必须放行的词。
+    """
+    benign = [
+        "Weight strong people management experience.",
+        "Looking for an experienced engineering manager.",
+        "Comfortable building agent frameworks and tooling.",
+        "Strong language skills and clear written communication.",
+        "Broad test coverage and good leverage of automation.",
+        "Able to show grace under pressure and embrace feedback.",
+    ]
+    for text in benign:
+        assert scan(text) is None, f"false positive on: {text!r}"

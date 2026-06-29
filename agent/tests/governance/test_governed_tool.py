@@ -63,6 +63,19 @@ def test_biased_write_is_blocked(tmp_path):
     assert provider.store._entries["org"] == []
 
 
+def test_unknown_action_is_rejected_not_defaulted_to_add(tmp_path):
+    """An unknown action is rejected explicitly (it must NOT silently fall through to add).
+
+    EN: action="frobnicate" → error, nothing stored. 中文：action="frobnicate" → 错误，不存储。
+    """
+    provider, _gate = _provider(tmp_path)
+    args = {"action": "frobnicate", "target": "org", "content": "x",
+            "source_type": "recruiter_input", "source_ref": "r#1"}
+    out = json.loads(provider.handle_tool_call("memory", args))
+    assert out["success"] is False and "unknown action" in out["error"]
+    assert provider.store._entries["org"] == []
+
+
 def test_no_gate_keeps_lean_default(tmp_path):
     """Without a gate the provider exposes no tools (the §1.3 lean default is preserved).
 

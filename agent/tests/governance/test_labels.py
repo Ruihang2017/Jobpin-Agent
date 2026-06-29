@@ -10,7 +10,9 @@ from jobpin_agent.governance.labels import (
     Provenance,
     parse_header,
     render_header,
+    strip_governance_headers,
 )
+from jobpin_agent.memory.store import ENTRY_DELIMITER
 
 
 def test_header_roundtrip():
@@ -46,3 +48,24 @@ def test_consent_required_set():
     """
     assert "candidate_submitted" in CONSENT_REQUIRED_SOURCE_TYPES
     assert "recruiter_input" not in CONSENT_REQUIRED_SOURCE_TYPES
+
+
+def test_strip_governance_headers_removes_headers_keeps_bodies():
+    """strip_governance_headers removes every header block but keeps the bodies + render chrome.
+
+    EN — two headered entries joined as a snapshot: headers gone, bodies + non-header text intact, and no
+    governance metadata (consent_id/collected_by) leaks. 中文 — 两条带头条目作为快照连接：头消失、正文与非头文本完整、
+    无治理元数据（consent_id/collected_by）泄漏。
+    """
+    e1 = (render_header(Provenance("acme:apac:org:policy", "recruiter_input", "rubric#1",
+                                   collected_by="recruiter:alice"),
+                        ConsentLabel("legitimate_interest"), "not_hired_180d") + "Weight reliability.")
+    e2 = (render_header(Provenance("acme:apac:recruiter:prefs", "recruiter_input", "note#2",
+                                   collected_by="recruiter:bob"),
+                        ConsentLabel("legitimate_interest"), "not_hired_180d") + "Prefers concise updates.")
+    snapshot = "ORG MEMORY [chrome]\n" + ENTRY_DELIMITER.join([e1, e2])
+    stripped = strip_governance_headers(snapshot)
+    assert "Weight reliability." in stripped and "Prefers concise updates." in stripped
+    assert "ORG MEMORY [chrome]" in stripped     # render chrome preserved
+    assert "key:" not in stripped and "collected_by:" not in stripped and "consent_id:" not in stripped
+    assert "recruiter:alice" not in stripped     # actor identity does not leak to the model

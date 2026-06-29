@@ -26,12 +26,14 @@ pre-compression wiring needs ("MemoryStore is not a Provider" gap, Plan §1.6).
 （§1.4）一同编排它，并让文件型记忆获得 §1.6 压缩前接线所需的 ``on_pre_compress`` 接缝（“MemoryStore 不是
 Provider”的缺口，计划 §1.6）。
 
-§1.3 刻意保持精简（仅读/接缝路径）：
+§1.3 曾刻意保持精简（仅读/接缝路径）；§1.5 点亮写工具：
 - 策展的冻结快照经 §1.1 ``memory_snapshot`` 槽位直接进入系统提示（装配顺序，计划 §1.1），故此处
   ``system_prompt_block`` 返回 ``""``——返回快照会造成重复。
 - ``prefetch`` 返回 ``""``（策展记忆在提示中是静态的；按查询召回是 §1.4 的向量 provider）。
-- ``sync_turn`` 为空操作（策展记忆是人工编辑，而非每回合自动写入；受治理的 ``memory`` 写工具在 §1.5）。
-- ``get_tool_schemas`` 返回 ``[]``（写工具在 §1.5）。
+- ``sync_turn`` 为空操作（策展记忆不按回合自动写入；写入经下方面向模型的受治理 ``memory`` 工具，而非后台 sync）。
+- ``get_tool_schemas`` 在注入 §1.5 ``GovernanceGate``（``gate=``）时返回受治理的 ``memory`` 写工具；无门控时返回
+  ``[]``（保留 §1.3 精简默认，向后兼容）。``handle_tool_call`` 以门控做预检（拒绝未标注/未同意/偏见写入），将校验后的
+  治理头前缀到条目，再调用 §1.2 存储——故移植的 ``MemoryStore`` 不变，且 100% 被接受写入携带标签。
 """
 from __future__ import annotations
 
@@ -203,6 +205,8 @@ class BuiltinMemoryProvider(MemoryProvider):
         if tool_name != "memory" or self._gate is None:
             return super().handle_tool_call(tool_name, args, **kwargs)
         action = str(args.get("action") or "")
+        if action not in ("add", "replace", "remove"):
+            return json.dumps({"success": False, "error": f"unknown action {action!r}"})
         target = str(args.get("target") or "org")
         if target not in self._TARGET_KEYS:
             return json.dumps({"success": False, "error": f"unknown target {target!r}"})
@@ -225,6 +229,12 @@ class BuiltinMemoryProvider(MemoryProvider):
             result = self._store.add(target, decision.header + body)
         if result.get("success"):
             self._gate.audit.record(self._actor, f"write:{action}", key, result="ok")
+        else:
+            # The gate passed but the ported §1.2 store rejected (drift → .bak, over-budget, ambiguous
+            # match, duplicate). Leave an audit trail too (forensic completeness; Plan §1.5 drift row).
+            code = "rejected:drift" if result.get("drift_backup") else "rejected:store"
+            self._gate.audit.record(self._actor, f"write:{action}", key,
+                                    reason=str(result.get("error") or "")[:200], result=code)
         return json.dumps(result)
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:

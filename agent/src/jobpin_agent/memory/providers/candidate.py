@@ -53,15 +53,21 @@ class CandidateMemoryProvider(RetrievalProvider):
         scope_filter: Optional[Callable[[str], bool]] = None,
         write_gate: Optional[Callable[[str, str, str], Optional[str]]] = None,
         scan_entry: Optional[Callable[[str], Optional[str]]] = None,
+        governance: Optional[Any] = None,
+        actor: str = "system",
         rerank: Optional[RerankFn] = None,
         k: int = 4,
     ) -> None:
         """Construct the provider.
 
         EN: Args: see the class docstring; scan_entry (threat scan on ingested chunk text, default
-            pass-through — flagged chunks are skipped; the real scanner is §1.6); rerank (default identity).
+            pass-through — flagged chunks are skipped; the real scanner is §1.6); governance (an optional
+            §1.5 ``GovernanceGate`` — when set, ``ingest`` enforces provenance + granted consent and
+            rejects unlabelled/unconsented candidate writes; default None preserves §1.4 behaviour);
+            actor (audit actor for the governance check); rerank (default identity).
         中文：参数：见类文档；scan_entry（ingest 片段文本威胁扫描，默认直通——被标记的片段跳过；真实扫描器为 §1.6）；
-            rerank（默认恒等）。
+            governance（可选的 §1.5 ``GovernanceGate``——设置后 ``ingest`` 强制来源 + 已授予同意，拒绝未标注/未同意的
+            候选人写入；默认 None 保留 §1.4 行为）；actor（治理检查的审计执行者）；rerank（默认恒等）。
         """
         super().__init__(rerank=rerank)
         self._vec = vector_store
@@ -72,6 +78,8 @@ class CandidateMemoryProvider(RetrievalProvider):
         self._scope = scope_filter or (lambda _mk: True)
         self._gate = write_gate
         self._scan = scan_entry
+        self._governance = governance
+        self._actor = actor
         self._k = k
 
     @property
@@ -89,9 +97,14 @@ class CandidateMemoryProvider(RetrievalProvider):
         Args: candidate (structured row); chunks (list of ``(source_ref, text)``). Returns: a success
         dict, or a staged dict if the ``write_gate`` holds the write (nothing persisted).
         中文 —
-        参数：candidate（结构化行）；chunks（``(source_ref, text)`` 列表）。返回：成功字典，或若 ``write_gate``
-        保留写入则为暂存字典（不持久化）。
+        参数：candidate（结构化行）；chunks（``(source_ref, text)`` 列表）。返回：成功字典；若 §1.5 治理拒绝则为
+        ``{"success": False, "rejected": <码>}``；或若 ``write_gate`` 保留写入则为暂存字典（不持久化）。
         """
+        if self._governance is not None:
+            decision = self._governance.validate_entity_ingest(
+                candidate.memory_key, candidate.consent_status, [sr for sr, _ in chunks], actor=self._actor)
+            if not decision.ok:
+                return {"success": False, "rejected": decision.code.split(":", 1)[-1], "code": decision.code}
         if self._gate is not None:
             held = self._gate("add", "candidate", candidate.memory_key)
             if held:

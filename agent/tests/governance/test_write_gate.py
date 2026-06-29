@@ -78,3 +78,33 @@ def test_remove_skips_content_checks():
                              Provenance("acme:apac:org:policy", ""), ConsentLabel("legitimate_interest"),
                              "not_hired_180d", actor="a")
     assert decision.ok
+
+
+def test_rejects_blank_source_type():
+    """A write with a source_ref but no source_type is rejected (weak provenance).
+
+    EN: blank source_type → rejected:no_provenance. 中文：source_type 为空 → rejected:no_provenance。
+    """
+    gate = _gate()
+    prov = Provenance("acme:apac:org:policy", source_type="", source_ref="rubric#1")
+    decision = gate.validate("add", "acme:apac:org:policy", "weight reliability",
+                             prov, ConsentLabel("legitimate_interest"), "not_hired_180d", actor="a")
+    assert not decision.ok and decision.code == "rejected:no_provenance"
+
+
+def test_entity_ingest_requires_provenance_and_consent():
+    """validate_entity_ingest rejects missing source_refs / non-granted consent, accepts a granted one.
+
+    EN: the candidate write path is governed too. 中文：候选人写路径同样受治理。
+    """
+    gate = _gate()
+    # no source_refs → no_provenance
+    d1 = gate.validate_entity_ingest("acme:apac:candidate:x", "granted", [], actor="dpo")
+    assert not d1.ok and d1.code == "rejected:no_provenance"
+    # withdrawn consent → no_consent
+    d2 = gate.validate_entity_ingest("acme:apac:candidate:x", "withdrawn", ["cv#1"], actor="dpo")
+    assert not d2.ok and d2.code == "rejected:no_consent"
+    assert gate.audit.query(action="write:ingest")[-1].result == "rejected:no_consent"
+    # granted + provenance → ok
+    d3 = gate.validate_entity_ingest("acme:apac:candidate:x", "granted", ["cv#1"], actor="dpo")
+    assert d3.ok

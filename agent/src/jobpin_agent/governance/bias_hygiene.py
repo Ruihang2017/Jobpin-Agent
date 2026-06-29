@@ -43,12 +43,20 @@ class BiasFinding:
     reason: str
 
 
-# Protected attributes (Australian anti-discrimination grounds). Using these as decision features is rejected.
-PROTECTED_ATTRIBUTES: Tuple[str, ...] = (
-    "age", "years old", "gender", "male", "female", "race", "ethnic", "nationality",
-    "married", "marital", "pregnan", "children", "family status", "religion", "disability",
-    "health condition", "sexual orientation",
+# Protected attributes (Australian anti-discrimination grounds) as (label, word-boundary regex).
+# CRITICAL: match on word boundaries, NOT raw substring — naive ``"age" in text`` false-positives on
+# "manAGEment" / "manAGEr" / "lAGuage" / "coverAGE", and "race" on "gRACE" / "embRACE", which would make
+# the gate hard-reject ordinary recruiter/HR vocabulary. Stems use ``\w*`` (e.g. pregnan/ethnic/disabilit).
+PROTECTED_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
+    ("age", r"\bage\b|\byears old\b|\bdate of birth\b"),
+    ("gender", r"\bgender\b|\b(?:fe)?male\b"),
+    ("race/ethnicity", r"\brace\b|\bethnic\w*\b|\bnationality\b"),
+    ("marital/family status", r"\bmarried\b|\bmarital\b|\bfamily status\b|\bchildren\b|\bpregnan\w*\b"),
+    ("religion", r"\breligio\w+\b"),
+    ("disability/health", r"\bdisabilit\w+\b|\bhealth condition\b"),
+    ("sexual orientation", r"\bsexual orientation\b"),
 )
+_PROTECTED_COMPILED = tuple((label, re.compile(pattern)) for label, pattern in PROTECTED_ATTRIBUTES)
 
 # Proxy variables / indirect-discrimination patterns — flagged (blocked when used as a hard threshold).
 PROXY_PATTERNS: Tuple[Tuple[str, str], ...] = (
@@ -66,16 +74,18 @@ def scan(text: str) -> Optional[BiasFinding]:
     EN —
     Args: text (the content about to be written to memory). Returns: a ``BiasFinding`` on the first hit
     (protected attribute checked first → ``rejected:bias``; then proxy → ``flagged:bias``), or ``None``
-    if no obvious red flag.
+    if no obvious red flag. Matching is word-boundary based, so benign words that merely embed a token
+    (e.g. "management", "language", "grace") do not trigger a false positive.
 
     中文 —
     参数：text（即将写入记忆的内容）。返回：首个命中时的 ``BiasFinding``（先查受保护属性 → ``rejected:bias``；再查
-    代理变量 → ``flagged:bias``），无明显红旗则 ``None``。
+    代理变量 → ``flagged:bias``），无明显红旗则 ``None``。匹配基于词边界，故仅嵌入某 token 的良性词
+    （如 "management"、"language"、"grace"）不会误报。
     """
     low = text.lower()
-    for term in PROTECTED_ATTRIBUTES:
-        if term in low:
-            return BiasFinding("rejected:bias", term, f"protected attribute referenced: {term!r}")
+    for label, pattern in _PROTECTED_COMPILED:
+        if pattern.search(low):
+            return BiasFinding("rejected:bias", label, f"protected attribute referenced: {label}")
     for pattern, reason in PROXY_PATTERNS:
         if re.search(pattern, low):
             return BiasFinding("flagged:bias", pattern, reason)
