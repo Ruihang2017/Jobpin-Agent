@@ -14,9 +14,12 @@ orchestration, integration, and the AI/eval platform as sibling subpackages.
 - `governance/` — HR memory governance (§1.5): namespace, provenance/consent
   labels, the governed write-gate + memory tool, RBAC recall filter, retention,
   erasure, and the append-only audit log.
+- `security/` — context-window security (§1.6): the ported threat-pattern library
+  + streaming scrubber + the external-text scan/fence door. (Compression wiring
+  lives in `core/compression.py`.)
 
-Planned siblings (later points): `security/`, `orchestration/`, `data/`,
-`integration/`, `ai/`, `eval/`, `obs/`.
+Planned siblings (later points): `orchestration/`, `data/`, `integration/`,
+`ai/`, `eval/`, `obs/`.
 
 ## 中文
 Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A）；后续生产计划节点将以同级子包形式加入记忆、
@@ -28,5 +31,7 @@ Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A
   以及实体/语义/复合 provider。
 - `governance/` — HR 记忆治理（§1.5）：命名空间、来源/同意标签、受治理写门控 + 记忆工具、RBAC 召回过滤、留存、
   擦除，以及仅追加审计日志。
+- `security/` — 上下文窗口安全（§1.6）：移植的威胁模式库 + 流式清洗器 + 外部文本扫描/围栏入口。
+  （压缩接线位于 `core/compression.py`。）
 
-规划中的同级目录（后续节点）：`security/`、`orchestration/`、`data/`、`integration/`、`ai/`、`eval/`、`obs/`。
+规划中的同级目录（后续节点）：`orchestration/`、`data/`、`integration/`、`ai/`、`eval/`、`obs/`。
