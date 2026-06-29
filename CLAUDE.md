@@ -253,11 +253,40 @@ them stale:
   `TEXTBOOK_SPEC.md`).
 - **This file** — reflect finished work in §4 (handover) / §8 (status), and the PRD §0 status if the
   project phase changed.
-- **Per-point study reference (`site/devlog/`)** — every implemented Production-Plan point gets a
-  teaching write-up explaining **how it was implemented and why**, in **EN + 中文**
-  (`p<phase>-<point>-<slug>-EN.md` + the Chinese base name `p<phase>-<point>-<slug>.md`), so the repo
-  doubles as a study reference. These live under `site/` (served docs); wiring them into the viewer's
-  navigation is an optional follow-up.
+- **Per-point devlog (`site/devlog/`) — the developer SOURCE OF TRUTH, read BEFORE the code.** Every
+  implemented Production-Plan point gets a **detailed, technically-complete** bilingual write-up
+  (`p<phase>-<point>-<slug>-EN.md` + the 中文 base name `p<phase>-<point>-<slug>.md`). Reviewers read
+  the devlog **first** and judge whether the work is done **from it**, *then* (optionally) open the
+  source — code-reading is the *second* step, not the first. So a devlog that only narrates "what +
+  why" with a diagram is **INCOMPLETE**: it must carry the concrete technical substance a developer
+  needs to understand and assess the implementation **without opening the code**. The bar: *a reviewer
+  who reads only the devlog can state what was built, what its interfaces are, how the non-obvious
+  parts work, and whether the acceptance criteria are met.* **Required sections (include every one that
+  applies; EN + 中文 in lockstep — same sections, same depth):**
+  1. **What this delivers** — 1–2 paragraphs + the **Plan deliverables it satisfies** (cite the Plan §).
+  2. **Files added/changed** — a file-by-file **table**: `path` → what it contains (key classes /
+     functions / constants). The reader must see the shape of the change here.
+  3. **The public surface (API)** — the **actual signatures** of the key classes / functions /
+     constants a consumer calls, each with a one-line contract. The reader learns the interface *here*,
+     not from the code.
+  4. **Data structures & formats** — real dataclass/record fields (name + type), SQL schemas, key
+     constants, on-disk / wire / prompt formats — verbatim, not paraphrased.
+  5. **Key mechanisms / algorithms** — step by step, **with the actual key code snippets** for the
+     non-obvious logic (the parts a reader can't guess). For a port, show **what was copied vs adapted**.
+  6. **Design decisions & why** — the choices, trade-offs, rationale (for ports: what changed vs Hermes).
+  7. **Seams & deferrals** — what is injected/stubbed now (the **seam signature + default**) and exactly
+     where/when the real implementation lands.
+  8. **Tests & acceptance** — the **actual test cases** (`test_name` → what each proves), mapped to the
+     Plan's acceptance matrix / exit criteria, with the pass count. A reviewer must judge completeness
+     from this list.
+  9. **Diagram(s)** — mermaid where it clarifies flow/wiring (top-down, single connected flows so they
+     render legibly).
+  10. **How to run / verify it yourself** — exact commands + expected output.
+  11. **What the triple-review changed** — findings + fixes.
+  12. **How this sets up the next point(s)** — the seams/interfaces the next points consume.
+
+  These live under `site/` (served docs); wiring them into the viewer's navigation is an optional
+  follow-up. **A devlog missing the technical substance (especially §§2–5 and §8) is not done.**
 - **Bilingual docstrings (`agent/`)** — every Python file, class, and function under `agent/`
   (including tests and `__init__.py`) carries a **comprehensive docstring, English then 中文**, with
   `Args:`/`Returns:` (and `Raises:`/learning note where useful). The code is a study reference; keep
