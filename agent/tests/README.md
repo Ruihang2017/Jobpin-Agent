@@ -20,6 +20,7 @@ offline and deterministically (the OpenAI integration test skips unless
 - `test_compression_loop.py` — §1.6 opt-in compression through `Agent.run_turn` (fact survives; off = unchanged).
 - `governance/` — §1.5 HR memory governance tests (see its own README).
 - `security/` — §1.6 injection-defence tests (threat patterns, scrubber, ingest, scan wiring; see its own README).
+- `orchestration/` — §1.7 Layer B tests (store, state machine, idempotency, recovery, persistence contracts; see its own README).
 - `data/` — fixtures (the system-prompt golden file).
 
 ## 中文
@@ -41,4 +42,5 @@ Agent 内核的 pytest 测试。每个源模块对应一个测试模块；全部
 - `test_compression_loop.py` — §1.6 经 `Agent.run_turn` 的可选压缩（事实存活；关闭则不变）。
 - `governance/` — §1.5 HR 记忆治理测试（见其自身 README）。
 - `security/` — §1.6 注入防御测试（威胁模式、清洗器、ingest、扫描接线；见其自身 README）。
+- `orchestration/` — §1.7 Layer B 测试（存储、状态机、幂等、恢复、持久化契约；见其自身 README）。
 - `data/` — 固定装置（系统提示黄金文件）。

@@ -17,9 +17,11 @@ orchestration, integration, and the AI/eval platform as sibling subpackages.
 - `security/` — context-window security (§1.6): the ported threat-pattern library
   + streaming scrubber + the external-text scan/fence door. (Compression wiring
   lives in `core/compression.py`.)
+- `orchestration/` — Layer B long-running orchestration (§1.7): the in-house
+  lightweight state machine (declarative definition + engine, SQLite persistence,
+  idempotency, crash recovery) — the cross-day, resumable hiring-loop skeleton.
 
-Planned siblings (later points): `orchestration/`, `data/`, `integration/`,
-`ai/`, `eval/`, `obs/`.
+Planned siblings (later points): `data/`, `integration/`, `ai/`, `eval/`, `obs/`.
 
 ## 中文
 Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A）；后续生产计划节点将以同级子包形式加入记忆、
@@ -33,5 +35,7 @@ Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A
   擦除，以及仅追加审计日志。
 - `security/` — 上下文窗口安全（§1.6）：移植的威胁模式库 + 流式清洗器 + 外部文本扫描/围栏入口。
   （压缩接线位于 `core/compression.py`。）
+- `orchestration/` — Layer B 长程编排（§1.7）：自建轻量状态机（声明式定义 + 引擎、SQLite 持久化、幂等、崩溃恢复）
+  ——跨天、可恢复的招聘 loop 骨架。
 
-规划中的同级目录（后续节点）：`orchestration/`、`data/`、`integration/`、`ai/`、`eval/`、`obs/`。
+规划中的同级目录（后续节点）：`data/`、`integration/`、`ai/`、`eval/`、`obs/`。
