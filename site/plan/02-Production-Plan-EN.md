@@ -498,22 +498,36 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **What (contract)**: At-rest encryption of local data and memory, access control, key / secret management, and (in enterprise scenarios) SSO — under local-first, "security" is both a privacy selling point and an NDB safe harbour.
 
+> **Phase 0 scope decision (2026-06-30)**: Of this workstream, Phase 0 ships only the two items the core asset and the compliance pitch *depend on* and that are expensive to retrofit into the data / recall layer — **at-rest encryption + OS-keystore key handling** and the **RBAC/ABAC engine** (the §1.5 memory-recall filter reuses it). The rest — **field-level encryption, secret management (store + rotation), SSO, and update-package signing / integrity** — is **deferred to a later phase (Phase 1+)**, each built when its trigger arrives (real customer BYO-keys / multiple connector creds → secrets; the first enterprise pilot → SSO; the auto-update / distribution hardening → signing; a data-layer hardening pass → field-level encryption). The Phase 0 exit bar (§1.16) is **unchanged**: it already gates only the two kept foundations.
+
 **Scope**:
-- **At-rest encryption**: the local database and memory files are encrypted at rest; keys are managed by the OS keystore (Windows DPAPI / macOS Keychain); sensitive fields are additionally encrypted.
-- **RBAC + ABAC**: by org / team / role / sensitivity; least privilege.
-- **Secret management**: model API keys (including customer BYO-key), connector credentials — securely stored and rotated.
-- **SSO (enterprise scenario)**: an OIDC / SAML integration skeleton (SMBs default to local accounts, enterprises can opt into SSO).
-- **Local application integrity**: an update-package signing and integrity-verification skeleton (interfacing with 1.13 packaging).
+
+*Phase 0 (non-negotiable — foundational, hard to retrofit):*
+- **At-rest encryption**: the local database and memory files are encrypted at rest; keys are managed by the OS keystore (Windows DPAPI / macOS Keychain); a raw-disk read yields only ciphertext.
+- **RBAC + ABAC**: by org / team / role / sensitivity; least privilege. The **same engine** as the §1.5 memory-recall RBAC (single source of truth — no permission-model drift).
+
+*Deferred to a later phase (built when the trigger arrives):*
+- **Field-level encryption** of individually sensitive fields (defense-in-depth on top of full at-rest encryption) — follows a data-layer hardening pass, once the at-rest layer is in and the schema flags sensitive columns.
+- **Secret management**: model API keys (including customer BYO-key) and connector credentials — secure store + rotation. Phase 0 interim is the existing gitignored `.env` / OS-keystore; the dedicated store + rotation lands in Phase 1 when customer BYO-keys / multiple connector credentials are real.
+- **SSO (enterprise scenario)**: an OIDC / SAML integration skeleton — SMBs default to local accounts; lands when the first enterprise pilot needs it.
+- **Local application integrity**: an update-package signing and integrity-verification skeleton — moves with the auto-update / distribution hardening (pairs with the 1.13 packaging work).
 
 **Deliverables**:
+
+*Phase 0:*
 - [ ] `security/encryption`: an at-rest encryption layer + OS keystore integration (DPAPI / Keychain).
 - [ ] `security/rbac`: an RBAC/ABAC policy engine (same source as the 1.5 memory RBAC).
+- [ ] A record of the threat-modelling v1 initial-review pass over the two foundations above (interfacing with the 1.14 architecture documents).
+
+*Deferred (later phase):*
+- [ ] `security/encryption` (field-level): per-column encryption of sensitive fields.
 - [ ] `security/secrets`: secret storage + rotation.
-- [ ] A record of the threat-modelling v1 initial-review pass (interfacing with the 1.14 architecture documents).
+- [ ] `security/sso`: an OIDC / SAML integration skeleton.
+- [ ] `security/integrity`: an update-package signing + integrity-verification skeleton.
 
 **Implementation Notes (How)**: the security-baseline RBAC/ABAC and the 1.5 memory-recall RBAC are **the same source** (the memory prefetch filter directly reuses this engine's decisions, avoiding drift between two permission models); the master key is never stored in plaintext on disk and is held via DPAPI / Keychain, so a raw-disk read yields ciphertext.
 
-**Exit Criteria**:
+**Exit Criteria** (unchanged — already gate only the Phase 0 foundations):
 - At-rest encryption of the local database / memory files is enabled, with keys managed via the OS keystore; a raw-disk read cannot yield plaintext.
 - RBAC is available and passes an unauthorised-access test; the security baseline passes the **first threat-modelling review**.
 
