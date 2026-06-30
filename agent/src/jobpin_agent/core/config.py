@@ -72,6 +72,10 @@ class CoreConfig:
         model_id: Default model id for the OpenAI adapter.
         db_path: SQLite session-store path (``:memory:`` is valid for tests).
         max_tool_iterations: Max tool rounds per turn before the loop stops.
+        encryption_enabled: When True, local stores are opened with at-rest encryption (§1.9); the
+            master key is taken from the OS keystore at ``master_key_path``. Default False keeps the
+            existing test suite and demos unchanged (plain SQLite, plaintext files).
+        master_key_path: Path to the OS-keystore-protected master-key file (§1.9 ``KeyStore``).
 
     中文 —
     属性：
@@ -80,12 +84,17 @@ class CoreConfig:
         model_id：OpenAI 适配器的默认模型 id。
         db_path：SQLite 会话存储路径（测试可用 ``:memory:``）。
         max_tool_iterations：每回合在循环停止前的最大工具轮数。
+        encryption_enabled：为 True 时，本地存储以静态加密打开（§1.9）；主密钥取自 ``master_key_path`` 处的 OS
+            keystore。默认 False，使既有测试套件与演示保持不变（普通 SQLite、明文文件）。
+        master_key_path：受 OS keystore 保护的主密钥文件路径（§1.9 ``KeyStore``）。
     """
 
     openai_api_key: str | None = None
     model_id: str = "gpt-4o-mini"
     db_path: str = "jobpin_sessions.db"
     max_tool_iterations: int = 8
+    encryption_enabled: bool = False
+    master_key_path: str = "jobpin_master.key"
 
     @classmethod
     def from_env(cls) -> "CoreConfig":
@@ -94,15 +103,16 @@ class CoreConfig:
         EN —
         First calls ``_load_dotenv()`` so a local ``.env`` (e.g. ``agent/.env``)
         populates any unset variables, then reads ``OPENAI_API_KEY``,
-        ``JOBPIN_MODEL_ID``, ``JOBPIN_DB_PATH`` and ``JOBPIN_MAX_TOOL_ITERS`` (the
-        last three falling back to the dataclass defaults).
+        ``JOBPIN_MODEL_ID``, ``JOBPIN_DB_PATH``, ``JOBPIN_MAX_TOOL_ITERS``,
+        ``JOBPIN_ENCRYPTION`` (``"1"`` enables at-rest encryption) and
+        ``JOBPIN_KEY_PATH`` (all falling back to the dataclass defaults).
         Returns:
             A populated ``CoreConfig``.
 
         中文 —
         先调用 ``_load_dotenv()``，使本地 ``.env``（如 ``agent/.env``）填充任何未设置的变量，然后读取
-        ``OPENAI_API_KEY``、``JOBPIN_MODEL_ID``、``JOBPIN_DB_PATH`` 与 ``JOBPIN_MAX_TOOL_ITERS``
-        （后三者回退到 dataclass 默认值）。
+        ``OPENAI_API_KEY``、``JOBPIN_MODEL_ID``、``JOBPIN_DB_PATH``、``JOBPIN_MAX_TOOL_ITERS``、
+        ``JOBPIN_ENCRYPTION``（``"1"`` 启用静态加密）与 ``JOBPIN_KEY_PATH``（均回退到 dataclass 默认值）。
         返回：
             已填充的 ``CoreConfig``。
         """
@@ -112,4 +122,6 @@ class CoreConfig:
             model_id=os.environ.get("JOBPIN_MODEL_ID", "gpt-4o-mini"),
             db_path=os.environ.get("JOBPIN_DB_PATH", "jobpin_sessions.db"),
             max_tool_iterations=int(os.environ.get("JOBPIN_MAX_TOOL_ITERS", "8")),
+            encryption_enabled=os.environ.get("JOBPIN_ENCRYPTION", "") == "1",
+            master_key_path=os.environ.get("JOBPIN_KEY_PATH", "jobpin_master.key"),
         )

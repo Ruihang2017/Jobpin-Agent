@@ -15,6 +15,8 @@ parameterised. A fresh store over the **same file** sees committed data — that
 from __future__ import annotations
 
 import sqlite3
+
+from ..security.db_encryption import open_encrypted_db
 from pathlib import Path
 from typing import List, Optional
 
@@ -32,14 +34,15 @@ class OrchestrationStore:
     在 ``:memory:``（临时）或文件路径（持久——重启/恢复测试需要）上构造。转移表按构造即仅追加（无修改方法）。
     """
 
-    def __init__(self, db_path: str = ":memory:") -> None:
+    def __init__(self, db_path: str = ":memory:", cipher_key: bytes | None = None) -> None:
         """Open (or create) the store and ensure the three tables.
 
-        EN: Args: db_path (``:memory:`` or a file path). 中文：参数：db_path（``:memory:`` 或文件路径）。
+        EN: Args: db_path (``:memory:`` or a file path); cipher_key (§1.9 at-rest encryption when set).
+        中文：参数：db_path（``:memory:`` 或文件路径）；cipher_key（设置时启用 §1.9 静态加密）。
         """
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
+        self._conn = open_encrypted_db(db_path, cipher_key)
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS process_instances ("
             "instance_id TEXT PRIMARY KEY, process_type TEXT, current_state TEXT, status TEXT, "
