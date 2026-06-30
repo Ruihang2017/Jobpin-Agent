@@ -479,7 +479,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
                   provenance, consent_label, retention_policy }     # ties 1.4/1.5 together
 ```
 
-`AuditRecord` and `MemoryRecord` are the "seam tables" that land the shared vocabulary of Section 1.0, the 1.4 vector record, and the 1.5 governance schema onto the relational layer — all governance / audit queries start from these two tables.
+`AuditRecord` and `MemoryRecord` are the "seam tables" that land the shared vocabulary of Section 1.0, the 1.4 vector record, and the 1.5 governance schema onto the relational layer — all governance / audit queries start from these two tables. (§1.8 implementation note: the canonical audit is the unified query entry point **after a reconciliation import** of the §1.5 governance audit + the §1.7 transition log — a one-shot, non-idempotent snapshot. Rewiring those emitters to write directly to the canonical store is a Phase-2 consolidation; for the MVP the forerunners keep emitting locally and are imported on demand.)
 
 **Deliverables**:
 - [ ] `data/schema`: a local relational schema for the canonical entities + migration scripts.
@@ -490,7 +490,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **Exit Criteria**:
 - The M1–M3 subset schema is landed, with migration scripts that can roll forward / roll back.
-- Any operation "affecting an individual" leaves a who/what/when/why record in the audit log, which can be queried and reproduced.
+- Any operation "affecting an individual" leaves a who/what/when/why record in the audit log, which can be queried and reproduced. (Here "reproduced" = the trail is **reconstructable by querying the append-only log** — filter by the individual's `target_key` to get the who/what/when/why oldest-first — **not** an event-sourced state rebuild; the MVP does not mandate event sourcing.)
 
 ---
 

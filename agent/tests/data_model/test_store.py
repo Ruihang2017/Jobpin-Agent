@@ -34,10 +34,10 @@ def test_memory_record_roundtrip():
     assert got.store_kind == "vector" and got.retention_policy == "not_hired_180d"
 
 
-def test_other_entities_upsert_without_error():
-    """The remaining M1–M3 entities upsert cleanly (schema columns line up).
+def test_other_entities_roundtrip_proving_column_order():
+    """The remaining M1–M3 entities upsert AND read back field-for-field (proves column-order alignment).
 
-    EN: job/application/interview/consent/org/user. 中文：job/application/interview/consent/org/user。
+    EN: round-trip job/application/interview/consent/org/user. 中文：往返 job/application/interview/consent/org/user。
     """
     s = CanonicalStore()
     s.upsert_org(Org("apac", "acme", name="ACME APAC"))
@@ -48,5 +48,27 @@ def test_other_entities_upsert_without_error():
                                  idempotency_key="interview:req_812:cand_x:slot_1", status="proposed"))
     s.upsert_consent(Consent("c1", "cand_x", purpose="hiring", legal_basis="consent",
                              granted_at="t0", ttl_policy="not_hired_180d"))
-    # no exception == columns line up; spot-check one via a raw count
-    assert s.get_candidate("cand_x") is None  # not inserted here; sanity that get works
+    assert s.get_org("apac").name == "ACME APAC"
+    assert s.get_user("u1").role == "recruiter"
+    assert s.get_job("req_812").title == "Senior Backend Engineer" and s.get_job("req_812").status == "open"
+    assert s.get_application("app1").stage == "screening" and s.get_application("app1").job_id == "req_812"
+    iv = s.get_interview("iv1")
+    assert iv.idempotency_key == "interview:req_812:cand_x:slot_1" and iv.application_id == "app1"
+    c = s.get_consent("c1")
+    assert c.legal_basis == "consent" and c.candidate_id == "cand_x"      # the lawful-basis anchor reads back
+
+
+def test_data_subject_query_consents_and_memory_records():
+    """The data-subject query the mapping doc describes: a candidate's consents + memory records by prefix.
+
+    EN: consents_for_candidate + memory_records_under(prefix) back the Candidate → MemoryRecord join.
+    中文：consents_for_candidate + memory_records_under(prefix) 支撑 Candidate → MemoryRecord 连接。
+    """
+    s = CanonicalStore()
+    s.upsert_consent(Consent("c1", "cand_7f3a", purpose="hiring", legal_basis="consent", granted_at="t0"))
+    s.upsert_memory_record(MemoryRecord("acme:apac:candidate:cand_7f3a", "struct", consent_label="consent"))
+    s.upsert_memory_record(MemoryRecord("acme:apac:candidate:cand_7f3a:resume", "vector", provenance="cv#0"))
+    s.upsert_memory_record(MemoryRecord("acme:apac:candidate:other", "struct"))   # a different subject
+    assert [c.consent_id for c in s.consents_for_candidate("cand_7f3a")] == ["c1"]
+    keys = {m.memory_key for m in s.memory_records_under("acme:apac:candidate:cand_7f3a")}
+    assert keys == {"acme:apac:candidate:cand_7f3a", "acme:apac:candidate:cand_7f3a:resume"}  # not 'other'

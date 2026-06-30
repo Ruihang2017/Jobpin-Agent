@@ -29,9 +29,12 @@ This is the §1.8 deliverable that ties the canonical relational model (`data/`)
 `MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct}, provenance, consent_label, retention_policy }`
 is the relational **index** of every memory entry across the three stores: given a `memory_key`, it says
 which store holds it and carries the §1.5 governance labels (provenance / lawful-basis / retention). A
-data-subject query ("what do we hold about `cand_7f3a`, where, under what lawful basis?") joins `Candidate`
-→ `MemoryRecord` (by `memory_key` prefix) → the audit log; an erasure (§1.5) deletes across the stores and
-records the `erase` in the canonical audit.
+data-subject query ("what do we hold about `cand_7f3a`, where, under what lawful basis?") is backed by
+`CanonicalStore.consents_for_candidate(candidate_id)` (`Candidate → Consent`) +
+`CanonicalStore.memory_records_under(prefix)` (`Candidate → MemoryRecord` by `memory_key` prefix, matching
+the exact key + colon-nested keys) → the audit log; an erasure (§1.5) deletes across the stores and records
+the `erase` in the canonical audit. (`MemoryRecord` PK = `memory_key`, so one row per key — a key held in
+two stores at once is represented once today; a per-(key, store_kind) row is a future refinement.)
 
 ### Honest boundary
 The canonical `Candidate` and the §1.4 structured projection are **written separately by the caller today**
@@ -62,8 +65,10 @@ canonical store is the source of truth; the §1.4 projection is a denormalised c
 ### `MemoryRecord` 接缝
 `MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct}, provenance, consent_label, retention_policy }`
 是跨三个存储的每条记忆条目的关系**索引**：给定 `memory_key`，它指明哪个存储持有它，并携带 §1.5 治理标签（来源/合法依据/
-留存）。数据主体查询（“关于 `cand_7f3a` 我们持有什么、在哪、依何合法依据？”）连接 `Candidate` → `MemoryRecord`
-（按 `memory_key` 前缀）→ 审计日志；擦除（§1.5）跨存储删除并把 `erase` 记入规范审计。
+留存）。数据主体查询（”关于 `cand_7f3a` 我们持有什么、在哪、依何合法依据？”）由 `CanonicalStore.consents_for_candidate`
+（`Candidate → Consent`）+ `CanonicalStore.memory_records_under(prefix)`（`Candidate → MemoryRecord` 按 `memory_key`
+前缀，匹配精确键 + 冒号嵌套键）→ 审计日志 支撑；擦除（§1.5）跨存储删除并把 `erase` 记入规范审计。（`MemoryRecord` 主键 =
+`memory_key`，故每键一行——同时存于两个存储的键当前只表示一次；按 (key, store_kind) 一行为未来细化。）
 
 ### 诚实边界
 规范 `Candidate` 与 §1.4 结构化投影**当前由调用方分别写入**——尚无自动同步/触发器（同步在 M3 接入真实 ingest 流水线时

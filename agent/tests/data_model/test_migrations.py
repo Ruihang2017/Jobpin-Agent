@@ -22,9 +22,20 @@ def test_migrate_forward_then_back_round_trip():
     assert current_version(conn) == 0
     migrate(conn, LATEST)
     assert current_version(conn) == LATEST
-    assert {"candidate", "audit_log", "memory_record", "consent"} <= _tables(conn)
+    subset = {"candidate", "job", "application", "interview", "consent", "org", "user", "memory_record", "audit_log"}
+    assert subset <= _tables(conn)
     migrate(conn, 0)
     assert current_version(conn) == 0
-    assert "candidate" not in _tables(conn)
+    assert subset.isdisjoint(_tables(conn))          # ALL subset tables dropped on rollback
     migrate(conn, LATEST)
-    assert "candidate" in _tables(conn)
+    assert current_version(conn) == LATEST and subset <= _tables(conn)
+
+
+def test_migrate_records_achieved_version_not_overshoot():
+    """An overshoot target records the version actually reached (LATEST), not the argument.
+
+    EN: migrate(conn, 99) with LATEST==1 stamps LATEST. 中文：LATEST==1 时 migrate(conn, 99) 记录 LATEST。
+    """
+    conn = sqlite3.connect(":memory:")
+    migrate(conn, 99)
+    assert current_version(conn) == LATEST

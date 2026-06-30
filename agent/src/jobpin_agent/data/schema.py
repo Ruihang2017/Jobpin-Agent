@@ -169,7 +169,8 @@ TABLES = {
     "org": "CREATE TABLE IF NOT EXISTS org (org_id TEXT PRIMARY KEY, tenant_id TEXT, name TEXT)",
     "user": "CREATE TABLE IF NOT EXISTS user (user_id TEXT PRIMARY KEY, tenant_id TEXT, org_id TEXT, role TEXT)",
     "memory_record": (
-        "CREATE TABLE IF NOT EXISTS memory_record (memory_key TEXT PRIMARY KEY, store_kind TEXT, provenance TEXT, "
+        "CREATE TABLE IF NOT EXISTS memory_record (memory_key TEXT PRIMARY KEY, "
+        "store_kind TEXT CHECK(store_kind IN ('file', 'vector', 'struct')), provenance TEXT, "
         "consent_label TEXT, retention_policy TEXT)"
     ),
     "audit_log": (

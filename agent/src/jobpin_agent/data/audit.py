@@ -17,10 +17,20 @@ business-table transaction, so a ``rejected:*`` operation still leaves a trace. 
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
+
+
+def _like_escape(prefix: str) -> str:
+    """Escape LIKE metacharacters so a literal prefix is matched (``\\`` ``%`` ``_``).
+
+    EN: Args: prefix. Returns: the prefix safe for ``LIKE ? ESCAPE '\\'``. 中文：参数：prefix。返回：可安全用于
+        ``LIKE ? ESCAPE '\\'`` 的前缀。
+    """
+    return prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 @dataclass
@@ -53,24 +63,35 @@ class AuditStore:
     ``query`` 为取证读取；``import_governance_audit`` / ``import_transitions`` 折入先行者。无修改 API。
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        """Wrap a migrated connection (assumes ``audit_log`` exists).
+    def __init__(self, conn: sqlite3.Connection, lock: Optional[threading.Lock] = None) -> None:
+        """Wrap a migrated connection (assumes ``audit_log`` exists) with a serialising lock.
 
-        EN: Args: conn. 中文：参数：conn。
+        EN —
+        Args: conn (opened ``check_same_thread=False`` by ``CanonicalStore``); lock (the shared lock that
+        serialises ALL access to ``conn`` — passed by ``CanonicalStore`` so audit writes from the §1.3
+        background ``mem-sync`` worker and main-thread entity CRUD never use the connection concurrently;
+        a fresh lock is created if omitted, for a standalone audit). This delivers the **thread-safe**
+        read-path sink the §1.5 deferral routed here.
+        中文 —
+        参数：conn（由 ``CanonicalStore`` 以 ``check_same_thread=False`` 打开）；lock（串行化对 ``conn`` 所有访问的共享锁
+        ——由 ``CanonicalStore`` 传入，使 §1.3 后台 ``mem-sync`` worker 的审计写入与主线程实体 CRUD 绝不并发使用连接；
+        省略则新建一把锁，用于独立审计）。这交付 §1.5 推迟至此的**线程安全**读路径落点。
         """
         self._conn = conn
+        self._lock = lock or threading.Lock()
 
     def _insert(self, r: AuditRecord) -> None:
-        """Insert a record verbatim (used by ``record`` and the import adapters).
+        """Insert a record verbatim, serialised by the lock (used by ``record`` + the import adapters).
 
         EN: Args: r. Returns: None. 中文：参数：r。返回：None。
         """
-        self._conn.execute(
-            "INSERT INTO audit_log (actor, action, target_key, at_monotonic, at_wall, reason, result) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (r.actor, r.action, r.target_key, r.at_monotonic, r.at_wall, r.reason, r.result),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO audit_log (actor, action, target_key, at_monotonic, at_wall, reason, result) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (r.actor, r.action, r.target_key, r.at_monotonic, r.at_wall, r.reason, r.result),
+            )
+            self._conn.commit()
 
     def record(self, actor: str, action: str, target_key: str, *, reason: str = "", result: str = "ok") -> None:
         """Append one audit row, stamping the dual timestamp (monotonic + wall).
@@ -101,18 +122,28 @@ class AuditStore:
             clauses.append("action = ?")
             params.append(action)
         if result_prefix is not None:
-            clauses.append("result LIKE ?")
-            params.append(result_prefix + "%")
+            clauses.append("result LIKE ? ESCAPE '\\'")  # escape so '_'/'%' in a code are matched literally
+            params.append(_like_escape(result_prefix) + "%")
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY id"
-        return [AuditRecord(*row) for row in self._conn.execute(sql, params).fetchall()]
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [AuditRecord(*row) for row in rows]
 
     def import_governance_audit(self, governance_audit_log) -> int:
         """Import the §1.5 governance ``AuditLog`` rows into the canonical store (same shape).
 
-        EN: Args: governance_audit_log (a §1.5 ``AuditLog``). Returns: the number of rows imported.
-        中文：参数：governance_audit_log（§1.5 ``AuditLog``）。返回：导入行数。
+        EN —
+        Args: governance_audit_log (a §1.5 ``AuditLog``). Returns: the number of rows imported. **One-shot,
+        non-idempotent snapshot**: every source row is inserted on each call, so re-importing the same log
+        DUPLICATES rows (no dedup / since-cursor). The canonical table is the unified query entry point
+        *after* a reconciliation import; a live/incremental view (or rewiring the emitters) is a Phase-2
+        consolidation.
+        中文 —
+        参数：governance_audit_log（§1.5 ``AuditLog``）。返回：导入行数。**一次性、非幂等快照**：每次调用都插入全部源行，
+        故重复导入同一日志会**重复**行（无去重/游标）。规范表是对账导入*之后*的统一查询入口；实时/增量视图（或重写发射器）
+        为第二阶段整合。
         """
         rows = governance_audit_log.query()
         for r in rows:

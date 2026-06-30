@@ -33,6 +33,9 @@ class Migration:
 
 
 # v1: the full M1–M3 subset + audit_log in one migration. Future entities/columns land as v2, v3, ….
+# NOTE: the down-migration DROPs audit_log too — a full rollback to 0 destroys the append-only forensic
+# history. That is acceptable for dev/test schema management; a production rollback must back up audit_log
+# first (it is the tamper-evident record). v2+ migrations should be wrapped per-migration for atomicity.
 _V1_UP = ";\n".join(TABLES.values())
 _V1_DOWN = ";\n".join(f"DROP TABLE IF EXISTS {name}" for name in TABLES)
 MIGRATIONS = [Migration(1, _V1_UP, _V1_DOWN)]
@@ -82,7 +85,9 @@ def migrate(conn: sqlite3.Connection, to_version: int = LATEST) -> None:
             if to_version < m.version <= version:
                 conn.executescript(m.down)
                 version = m.version - 1
-    _set_version(conn, to_version)
+    # Record the version ACTUALLY reached, not the requested target (triple-review fix: a target that
+    # overshoots LATEST or undershoots 0 must not be recorded as if applied).
+    _set_version(conn, version)
     conn.commit()
 
 
