@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Dict, FrozenSet, Tuple
 
 from ..data.schema import Org, User
-from ..governance.rbac import FULL_ACCESS, Principal, scope_predicate  # noqa: F401  (FULL_ACCESS re-exported)
+from ..governance.rbac import Principal, scope_predicate
 
 
 @dataclass(frozen=True)
@@ -69,10 +69,14 @@ _SENSITIVITY_RANK = {"normal": 0, "sensitive": 1}
 class ResourceRef:
     """A reference to the thing an action targets (for ``authorize``).
 
-    EN — Attributes: type (entity type); org_id (the resource's owning org); memory_key (the namespace
-        key the scope filter checks); sensitivity (``normal``|``sensitive``, default ``normal``).
-    中文 — 属性：type（实体类型）；org_id（资源所属 org）；memory_key（范围过滤器检查的命名空间键）；
-        sensitivity（``normal``|``sensitive``，默认 ``normal``）。
+    EN — Attributes: type (entity type — descriptive/for-audit, NOT an authorization input; the
+        authoritative entity gate is the role's scope, applied to ``memory_key``); org_id (the resource's
+        owning org — checked for consistency against the ``memory_key`` org segment as ABAC
+        defense-in-depth); memory_key (the namespace key the scope filter checks — the authoritative
+        org/tenant/entity isolation); sensitivity (``normal``|``sensitive``, default ``normal``).
+    中文 — 属性：type（实体类型——描述性/供审计，**非**鉴权输入；权威的实体门控是角色范围施于 ``memory_key``）；
+        org_id（资源所属 org——作为 ABAC 纵深防御，与 ``memory_key`` 的 org 段做一致性校验）；memory_key（范围过滤器
+        检查的命名空间键——权威的 org/tenant/实体隔离）；sensitivity（``normal``|``sensitive``，默认 ``normal``）。
     """
 
     type: str
@@ -131,14 +135,16 @@ def authorize(principal: Principal, action: str, resource: ResourceRef) -> Decis
     EN —
     Args: principal (from ``principal_for``); action (a verb in the role's permission set); resource.
     Returns: ``Decision(True, "ok")`` only if the role grants the action AND the resource's sensitivity
-    is within the role's ceiling AND the resource's ``memory_key`` is inside the principal's scopes;
-    otherwise ``Decision(False, "rejected:rbac")``. Unknown role / missing permission / over-ceiling /
-    out-of-scope all deny.
+    is within the role's ceiling AND the resource's declared ``org_id`` is consistent with its
+    ``memory_key`` org segment (ABAC defense-in-depth) AND the ``memory_key`` is inside the principal's
+    scopes (the authoritative org/tenant/entity isolation); otherwise ``Decision(False, "rejected:rbac")``.
+    Unknown role / missing permission / over-ceiling / org-key mismatch / out-of-scope all deny.
 
     中文 —
     参数：principal（来自 ``principal_for``）；action（角色权限集中的动词）；resource。返回：仅当角色授予该动作、
-    且资源敏感度在角色上限内、且资源 ``memory_key`` 在 principal 范围内时返回 ``Decision(True, "ok")``；否则返回
-    ``Decision(False, "rejected:rbac")``。未知角色 / 缺权限 / 超上限 / 越范围均拒绝。
+    资源敏感度在角色上限内、资源声明的 ``org_id`` 与其 ``memory_key`` 的 org 段一致（ABAC 纵深防御）、且 ``memory_key``
+    在 principal 范围内（权威的 org/tenant/实体隔离）时返回 ``Decision(True, "ok")``；否则返回
+    ``Decision(False, "rejected:rbac")``。未知角色 / 缺权限 / 超上限 / org 与键不一致 / 越范围均拒绝。
     """
     role = ROLE_POLICIES.get(principal.role)
     if role is None:
@@ -146,6 +152,11 @@ def authorize(principal: Principal, action: str, resource: ResourceRef) -> Decis
     if action not in role.permissions:
         return Decision(False, "rejected:rbac")
     if _SENSITIVITY_RANK.get(resource.sensitivity, 1) > _SENSITIVITY_RANK.get(role.sensitivity_ceiling, 0):
+        return Decision(False, "rejected:rbac")
+    # ABAC defense-in-depth: a declared org_id must match the org segment of the key (catches a
+    # mis-constructed ResourceRef whose key and org disagree). Primary isolation is the scope check below.
+    key_parts = resource.memory_key.split(":")
+    if resource.org_id and len(key_parts) >= 2 and key_parts[1] != resource.org_id:
         return Decision(False, "rejected:rbac")
     if not scope_predicate(principal)(resource.memory_key):
         return Decision(False, "rejected:rbac")

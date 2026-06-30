@@ -77,3 +77,15 @@ def test_unknown_role_deny_all():
     d = authorize(p, "read", ResourceRef(type="candidate", org_id="apac",
                                          memory_key="acme:apac:candidate:c1"))
     assert d.allowed is False and d.reason == "rejected:rbac"
+
+
+def test_org_id_inconsistent_with_key_denied():
+    """A ResourceRef whose declared org_id disagrees with its key's org segment is denied (ABAC).
+
+    中文 — 声明的 org_id 与键的 org 段不一致的 ResourceRef 被拒绝（ABAC 纵深防御）。
+    """
+    p = principal_for(_user("recruiter"), _org())
+    # In-scope key (acme:apac:candidate:c1) but a lying org_id ("emea") -> denied by the consistency check.
+    d = authorize(p, "read", ResourceRef(type="candidate", org_id="emea",
+                                         memory_key="acme:apac:candidate:c1"))
+    assert d.allowed is False and d.reason == "rejected:rbac"

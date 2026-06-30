@@ -96,6 +96,32 @@ class CoreConfig:
     encryption_enabled: bool = False
     master_key_path: str = "jobpin_master.key"
 
+    def __post_init__(self) -> None:
+        """Fail loud if encryption is requested but not yet reachable from a running path.
+
+        EN —
+        ``encryption_enabled`` is a forward-looking seam: §1.9 ships the encryption machinery and wires
+        it into every store via an explicit ``cipher_key``/``cipher``, but there is no composition root
+        yet that turns the OS-keystore master key into those arguments (the standing §1.1 gap). So setting
+        the flag today would NOT encrypt anything — a dangerous false sense of security for a
+        compliance-first product. We therefore refuse to construct a config that claims encryption until
+        the wiring lands, rather than silently running on plaintext.
+        Raises: NotImplementedError when ``encryption_enabled`` is True.
+
+        中文 —
+        ``encryption_enabled`` 是前瞻性接缝：§1.9 交付加密机制并经显式 ``cipher_key``/``cipher`` 接入每个存储，但尚无
+        组合根把 OS-keystore 主密钥转成这些参数（§1.1 既有缺口）。故今天设置该标志并不会加密任何东西——对合规优先的产品
+        是危险的虚假安全感。因此在接线落地前，我们拒绝构造声称加密的配置，而非静默地以明文运行。
+        抛出：``encryption_enabled`` 为 True 时抛 NotImplementedError。
+        """
+        if self.encryption_enabled:
+            raise NotImplementedError(
+                "encryption_enabled is set, but no composition root yet wires the OS-keystore master "
+                "key into the stores (§1.9). Data would NOT be encrypted — refusing to start to avoid a "
+                "false sense of security. Pass cipher_key/cipher to a store directly until the app entry "
+                "point lands."
+            )
+
     @classmethod
     def from_env(cls) -> "CoreConfig":
         """Build a config from environment variables (seeding from ``.env`` first).

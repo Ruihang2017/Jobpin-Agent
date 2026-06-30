@@ -680,6 +680,8 @@ class MemoryStore:
         except (OSError, IOError):
             return None
         except Exception:
+            if self._cipher is None:
+                raise  # off-path: preserve the §1.2 port's exact behaviour (no cipher → propagate)
             # An encrypted file that will not decrypt = external tampering: back up + treat as drift.
             return self._backup_drift(path)
         if not raw.strip():

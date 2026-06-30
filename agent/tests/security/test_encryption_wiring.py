@@ -32,3 +32,25 @@ def test_canonical_store_plain_when_no_key(tmp_path):
     s.upsert_candidate(Candidate(candidate_id="c1", name="ZARA_PLAIN"))
     s.close()
     assert b"ZARA_PLAIN" in open(db, "rb").read()
+
+
+def test_keystore_to_store_end_to_end(tmp_path):
+    """Join the halves: an OS-keystore master key encrypts a real store end-to-end (§1.9).
+
+    EN — A master key from a ``KeyStore`` flows into ``open_encrypted_db`` (which derives the ``db``
+    subkey), so the store is ciphertext at rest and reads back — proving keystore→cipher→store, not just
+    the two halves in isolation.
+    中文 — 来自 ``KeyStore`` 的主密钥流入 ``open_encrypted_db``（其派生 ``db`` 子密钥），故存储静态为密文且可读回——
+    证明 keystore→cipher→store 全链路，而非孤立的两半。
+    """
+    from jobpin_agent.security.keystore import DevKeyStore
+
+    master = DevKeyStore(str(tmp_path / "mk.bin")).get_or_create_master_key()
+    db = str(tmp_path / "k.db")
+    s = CanonicalStore(db_path=db, cipher_key=master)
+    s.upsert_candidate(Candidate(candidate_id="c1", name="KEYSTORE_SECRET"))
+    s.close()
+    assert b"KEYSTORE_SECRET" not in open(db, "rb").read()
+    s2 = CanonicalStore(db_path=db, cipher_key=master)
+    assert s2.get_candidate("c1").name == "KEYSTORE_SECRET"
+    s2.close()
