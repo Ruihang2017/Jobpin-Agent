@@ -338,7 +338,7 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 **Status:**
 - **`main` now holds §1.1 → §1.7** (merged via PRs #3–#8; `origin/main` tip = the §1.7 merge). The
   per-point "**Not merged**" notes on §1.2–§1.7 below are **historical** (they were written pre-merge).
-  **§1.8 and §1.9 are complete and stacked (`phase0/1.9-security-baseline` off `phase0/1.8-canonical-data-audit` off `main`) — the two points not yet merged.**
+  **§1.8, §1.9 and §1.10 are complete and stacked (`phase0/1.10-integration` off `phase0/1.9-security-baseline` off `phase0/1.8-canonical-data-audit` off `main`) — the three points not yet merged.**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
@@ -431,12 +431,28 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   **Not merged.** Deferred behind seams: composition root (live encryption + RBAC-on-recall) → §1.1 app entry;
   secrets store → §1.11; field-level enc / SSO / signing → Phase 1+; audit tamper-chaining → Phase 2.
 
-**Branch:** `phase0/1.9-security-baseline` (off `phase0/1.8-canonical-data-audit`, off `main` which holds §1.1–§1.7).
+- Phase 0 **§1.10 Integration framework: complete** on `phase0/1.10-integration` (off `phase0/1.9-…`);
+  **one cohesive cycle** — the framework + a **fake** read-only ATS; the live real-ATS link deferred (Plan §1.10
+  scope decision, EN+中文: gated on credentials + §1.11 de-id; mirrors §1.1 FakeProvider). Net-new **purely
+  additive** `integration/` package: `sdk` (`Connector` + `AntiCorruptionLayer` → §1.8 entities), `connectors/fake_ats`
+  (synthetic, field names ≠ canonical), `outbound` (`OutboundGuard` — default-on "fully local" switch = 0 outbound,
+  single egress chokepoint, egress audit via §1.8 with the **true** outcome), `service` (`ingest`: validate-kind →
+  guard-gated fetch → translate → §1.8 `CanonicalStore`), `mcp` (connector ops as §1.1 `ToolSpec`s; live MCP
+  transport → §1.12 spike). **`agent_loop.py` + core/data/governance/security/orchestration/memory byte-unchanged**
+  (git-verified — it only *imports* §1.8 + §1.1). Triple-reviewed (all three **YES**, no MAJORs; architect confirmed
+  the Plan correct; fixes: validate-kind-before-egress, true egress outcome, app fixture/tests, 2-kind MCP test;
+  spec + Plan OAuth-deferred tidies EN+中文). Threat/scope honoured: no live connector / OAuth / MCP transport /
+  real de-id built (`deid_status` seam → §1.11). Bilingual devlog + per-folder READMEs. **14 §1.10 tests; full suite
+  254 passed, 2 skipped.** **Not merged.** Deferred: live ATS + OAuth → §1.11 trigger; real egress de-id + structured
+  audit columns + atomic batch ingest → §1.11; live MCP transport → §1.12; multi-connector / bidirectional → Phase 1–2.
+
+**Branch:** `phase0/1.10-integration` (off `phase0/1.9-security-baseline` → `phase0/1.8-canonical-data-audit` → `main` which holds §1.1–§1.7).
 
 **Immediate next steps:**
-1. **Land §1.8 then §1.9:** owner merges `phase0/1.8-canonical-data-audit → main`, then
-   `phase0/1.9-security-baseline → main` (kept gate; auto-deploys Netlify).
-2. **Next planned point — §1.10 (Integration framework):** the connector SDK + anti-corruption layer + one
-   read-only ATS/HRIS via MCP + the "fully local" outbound switch + per-egress audit. (Then §1.11 = model router
-   + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture spikes, incl.
-   the Temporal/LangGraph upgrade decision for §1.7.)
+1. **Land the stack:** owner merges `phase0/1.8-canonical-data-audit → main`, then `phase0/1.9-security-baseline`,
+   then `phase0/1.10-integration` (kept gate; auto-deploys Netlify).
+2. **Next planned point — §1.11 (AI / Eval platform skeleton):** the model router + provider-conformance, the
+   de-identification pipeline (sets the §1.10 `deid_status`; precondition for any real egress), prompt versioning,
+   the offline eval harness (quality + fairness scaffold), step-level tracing, and the streaming model path + the
+   real lossy LLM summariser (the §1.6 seam). (Then §1.12 = the architecture spikes, incl. the live-MCP-transport
+   feasibility for §1.10 and the Temporal/LangGraph upgrade decision for §1.7.)
