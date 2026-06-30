@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Callable, Iterable, Optional
 
 from ..governance.labels import strip_governance_headers
+from ..security.threat_patterns import first_threat_message
 from .manager import MemoryManager
 from .manager_hooks import MemoryManagerHooks
 from .provider import MemoryProvider
@@ -85,7 +86,8 @@ def build_memory_backend(
         memory_dir: directory holding ORG.md / RECRUITER.md (created/loaded by §1.2).
         extra_providers: additional providers to register (e.g. a §1.4 recall
             provider, or a fake in tests); the single-external rule still applies.
-        scan_entry: passed through to the §1.2 store (threat-scan seam, real scanner §1.6).
+        scan_entry: the §1.2 store's threat-scan seam. Defaults (when None) to the §1.6 real strict
+            threat scan (``first_threat_message(·, "strict")``); pass an explicit callable to override.
         write_gate: the §1.2 store's staging/approval seam (pass-through default).
         gate: an optional §1.5 ``GovernanceGate`` — when set, the builtin provider exposes and enforces
             the governed ``memory`` write tool; ``actor`` is its audit actor.
@@ -100,11 +102,16 @@ def build_memory_backend(
     参数：
         memory_dir：存放 ORG.md / RECRUITER.md 的目录（由 §1.2 创建/加载）。
         extra_providers：要注册的额外 provider（如 §1.4 召回 provider，或测试中的 fake）；单外部规则仍适用。
-        scan_entry：透传给 §1.2 存储（威胁扫描接缝，真实扫描器 §1.6）。
+        scan_entry：§1.2 存储的威胁扫描接缝。为 None 时默认采用 §1.6 真实 strict 威胁扫描
+            （``first_threat_message(·, "strict")``）；传入显式可调用对象以覆盖。
         write_gate：§1.2 存储的暂存/审批接缝（默认直通）。
         gate：可选的 §1.5 ``GovernanceGate``——设置后内置 provider 暴露并强制受治理的 ``memory`` 写工具；``actor`` 为其审计执行者。
     返回：``MemoryBackend``。
     """
+    # §1.6: the curated store's scan defaults to the real strict threat scan (memory writes are the
+    # most aggressive scope). Pass an explicit ``scan_entry`` to override (e.g. a pass-through in a test).
+    if scan_entry is None:
+        scan_entry = lambda text: first_threat_message(text, "strict")
     store = load_org_recruiter_store(memory_dir, scan_entry=scan_entry, write_gate=write_gate)
     manager = MemoryManager()
     manager.add_provider(BuiltinMemoryProvider(store, gate=gate, actor=actor))

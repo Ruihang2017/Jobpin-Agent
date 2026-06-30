@@ -163,6 +163,37 @@ class SessionStore:
         ).fetchall()
         return [_msg_from_dict(json.loads(r[0])) for r in rows]
 
+    def compact(self, session_id: str, summary_message: Message, keep_recent: int) -> None:
+        """Replace a session's old messages with a single summary, keeping the last ``keep_recent`` (§1.6).
+
+        EN —
+        The durable side of context compression: the §1.6 ``ContextCompressor`` calls this after capturing
+        the pre-compression facts, so subsequent turns send a small history. Unlike ``reset``, this does
+        NOT fire ``on_session_switch`` — compaction is not a session boundary, and firing reset semantics
+        would wrongly tell providers to flush per-session buffers. No-op if there is nothing to fold
+        (``len(messages) <= keep_recent``). The new order is ``[summary_message, *last keep_recent]``.
+        Args: session_id; summary_message (the SYSTEM summary to prepend); keep_recent (recent kept count).
+        Returns: None.
+
+        中文 —
+        上下文压缩的持久侧：§1.6 ``ContextCompressor`` 在捕获压缩前事实后调用，使后续回合发送较小历史。与 ``reset``
+        不同，本方法**不**触发 ``on_session_switch``——压缩并非会话边界，触发 reset 语义会错误地令 provider 清空按会话缓冲。
+        无可折叠时（``len(messages) <= keep_recent``）为空操作。新顺序为 ``[summary_message, *最近 keep_recent 条]``。
+        参数：session_id；summary_message（要前置的 SYSTEM 摘要）；keep_recent（保留的最近条数）。返回：None。
+        """
+        msgs = self.get_messages(session_id)
+        if len(msgs) <= keep_recent:
+            return
+        recent = msgs[-keep_recent:] if keep_recent > 0 else []
+        new_msgs = [summary_message, *recent]
+        self._conn.execute("DELETE FROM messages WHERE session_id=?", (session_id,))
+        for i, m in enumerate(new_msgs):
+            self._conn.execute(
+                "INSERT INTO messages (session_id, seq, payload) VALUES (?, ?, ?)",
+                (session_id, i, json.dumps(_msg_to_dict(m))),
+            )
+        self._conn.commit()
+
     def branch(self, session_id: str, new_session_id: str | None = None) -> str:
         """Fork a session: copy its history into a new child session.
 

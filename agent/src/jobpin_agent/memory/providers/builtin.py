@@ -238,10 +238,23 @@ class BuiltinMemoryProvider(MemoryProvider):
         return json.dumps(result)
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
-        """Seam for §1.6: the file store can take part in pre-compression extraction.
+        """Participate in the §1.6 pre-compression lifecycle (the file store has the hook) — returns "".
 
-        EN: Args: messages (ignored in §1.3). Returns: ``""`` (real extraction is §1.6).
-        中文：参数：messages（§1.3 忽略）。返回：``""``（真实抽取在 §1.6）。
+        EN —
+        §1.6 fixes the call-site gap (the Manager aggregates this and the loop now captures + merges it),
+        and the builtin file-backed provider IS driven by that aggregation — so "file-backed memory takes
+        part" is satisfied at the lifecycle/seam level. It returns ``""`` because **curated Org/Recruiter
+        memory is hand-edited, not conversation-derived** — there is nothing for *this* provider to extract
+        from the about-to-be-discarded messages. Extracting key facts from the *conversation* is a distinct
+        concern (the abstractive LLM summariser / a future conversation-memory provider) and lands at §1.11;
+        §1.6 ships the wiring, not conversation content-extraction.
+        Args: messages (about to be compressed). Returns: ``""``.
+
+        中文 —
+        §1.6 修复调用点缺口（Manager 聚合此值，循环现已捕获 + 并入），且内置文件型 provider 确由该聚合驱动——故
+        “文件型记忆参与”在生命周期/接缝层面已满足。它返回 ``""``，因为**策展 Org/Recruiter 记忆是人工编辑、并非由对话派生**
+        ——本 provider 无可从即将丢弃的消息中抽取之物。从*对话*抽取关键事实是另一关注点（抽象式 LLM 摘要器 / 未来的对话
+        记忆 provider），落在 §1.11；§1.6 交付接线，而非对话内容抽取。参数：messages（即将被压缩）。返回：``""``。
         """
         return ""
 
