@@ -101,3 +101,58 @@ def test_fail_sets_terminal_failed():
     e.fail("i1", reason="unrecoverable", actor="system")
     assert e.store.load_instance("i1").status == Status.FAILED
     assert e.store.transitions_for("i1")[-1].trigger == "fail:unrecoverable"
+
+
+def test_transition_unknown_instance_rejected():
+    """transition on an unknown instance raises IllegalTransition.
+
+    EN: the inst-is-None branch. 中文：inst 为 None 分支。
+    """
+    e = _engine()
+    with pytest.raises(IllegalTransition):
+        e.transition("nope", "screening", trigger="advance")
+
+
+def test_start_on_existing_instance_rejected():
+    """start cannot silently re-start a live instance.
+
+    EN: existence guard. 中文：存在性守卫。
+    """
+    e = _engine()
+    e.start("i1")
+    with pytest.raises(IllegalTransition):
+        e.start("i1")
+
+
+def test_fail_from_terminal_rejected():
+    """fail on a DONE instance raises (do not flip a terminal outcome).
+
+    EN: terminal guard. 中文：终止守卫。
+    """
+    e = _engine()
+    e.start("i1")
+    e.transition("i1", "screening", trigger="advance")
+    e.transition("i1", "done", trigger="finish")
+    assert e.store.load_instance("i1").status == Status.DONE
+    with pytest.raises(IllegalTransition):
+        e.fail("i1", reason="too late")
+
+
+def test_await_hitl_to_non_hitl_state_rejected():
+    """await_hitl refuses a to_state that is not a declared hitl_state (name must not lie).
+
+    EN. 中文。
+    """
+    e = _engine()
+    e.start("i1")
+    with pytest.raises(IllegalTransition):
+        e.await_hitl("i1", to_state="screening", trigger="oops")  # screening is not a hitl_state
+
+
+def test_definition_rejects_state_class_overlap():
+    """ProcessDefinition raises if a state is in two of hitl/suspend/terminal.
+
+    EN: disjointness validation. 中文：互斥校验。
+    """
+    with pytest.raises(ValueError):
+        ProcessDefinition("bad", "a", transitions={"a": {"b"}}, hitl_states={"b"}, terminal_states={"b"})

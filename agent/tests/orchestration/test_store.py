@@ -43,6 +43,30 @@ def test_non_terminal_instances():
     assert {i.instance_id for i in s.non_terminal_instances()} == {"a", "c"}
 
 
+def test_apply_writes_instance_and_transition_atomically():
+    """apply persists the instance AND its transition together (the M1 atomicity guarantee).
+
+    EN: one call → both rows. 中文：一次调用 → 两行皆写。
+    """
+    s = OrchestrationStore()
+    inst = ProcessInstance("i1", "p", "screening", Status.RUNNING, updated_at="t1")
+    s.apply(inst, Transition("i1", "new", "screening", "advance", "t1", "alice"))
+    assert s.load_instance("i1").current_state == "screening"
+    assert [t.to_state for t in s.transitions_for("i1")] == ["screening"]
+
+
+def test_idem_begin_claims_once_then_rejects():
+    """idem_begin succeeds for a new key and returns False for an already-claimed key (M2 race guard).
+
+    EN: plain-INSERT claim. 中文：纯 INSERT 登记。
+    """
+    s = OrchestrationStore()
+    assert s.idem_begin("k", "t0") is True
+    assert s.idem_begin("k", "t1") is False        # already claimed → no overwrite, no second winner
+    s.idem_complete("k", "sent", "t2")
+    assert s.idem_get("k") == {"status": "done", "result": "sent"}
+
+
 def test_idempotency_get_put():
     """idem_get/idem_put round-trip; a later put overwrites the status/result.
 

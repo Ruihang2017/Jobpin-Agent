@@ -102,6 +102,19 @@ class ProcessDefinition:
     suspend_states: Set[str] = field(default_factory=set)
     terminal_states: Set[str] = field(default_factory=set)
 
+    def __post_init__(self) -> None:
+        """Validate the state-class sets are disjoint (a state can't be two of hitl/suspend/terminal).
+
+        EN: Raises ValueError on overlap so a misconfiguration fails loudly (``status_for`` would otherwise
+            resolve it by silent precedence). 中文：集合重叠时抛 ValueError，使配置错误显式失败（否则 ``status_for`` 会按
+            静默优先级解析）。
+        """
+        overlap = ((self.terminal_states & self.hitl_states)
+                   | (self.terminal_states & self.suspend_states)
+                   | (self.hitl_states & self.suspend_states))
+        if overlap:
+            raise ValueError(f"ProcessDefinition state-class overlap (hitl/suspend/terminal): {sorted(overlap)}")
+
     def is_legal(self, from_state: str, to_state: str) -> bool:
         """Whether ``from_state -> to_state`` is a declared transition.
 
@@ -162,13 +175,16 @@ class ProcessEngine:
         """Open a new instance at the definition's initial state (logs the ``start`` transition).
 
         EN: Args: instance_id; context_ref; actor. Returns: the new ``ProcessInstance`` (status RUNNING).
+            Raises: ``IllegalTransition`` if the instance_id already exists (no silent re-start of a live process).
         中文：参数：instance_id；context_ref；actor。返回：新 ``ProcessInstance``（状态 RUNNING）。
+            抛出：若 instance_id 已存在则 ``IllegalTransition``（不静默重启运行中的流程）。
         """
+        if self.store.load_instance(instance_id) is not None:
+            raise IllegalTransition(f"instance {instance_id!r} already exists (cannot re-start)")
         now = self._clock()
         inst = ProcessInstance(instance_id, self.definition.process_type, self.definition.initial_state,
                                Status.RUNNING, context_ref=context_ref, updated_at=now)
-        self.store.save_instance(inst)
-        self.store.append_transition(Transition(instance_id, "", self.definition.initial_state, "start", now, actor))
+        self.store.apply(inst, Transition(instance_id, "", self.definition.initial_state, "start", now, actor))
         return inst
 
     def transition(self, instance_id: str, to_state: str, *, trigger: str, actor: str = "system") -> ProcessInstance:
@@ -193,16 +209,20 @@ class ProcessEngine:
         inst.current_state = to_state
         inst.status = self.definition.status_for(to_state)
         inst.updated_at = now
-        self.store.save_instance(inst)
-        self.store.append_transition(Transition(instance_id, from_state, to_state, trigger, now, actor))
+        self.store.apply(inst, Transition(instance_id, from_state, to_state, trigger, now, actor))  # atomic (M1)
         return inst
 
     def await_hitl(self, instance_id: str, *, to_state: str, trigger: str, actor: str = "system") -> ProcessInstance:
         """Transition to a HITL state (the process pauses for a human decision).
 
-        EN: Args: instance_id; to_state (a declared hitl_state); trigger; actor. Returns: the instance (AWAITING_HITL).
-        中文：参数：instance_id；to_state（声明的 hitl_state）；trigger；actor。返回：实例（AWAITING_HITL）。
+        EN: Args: instance_id; to_state (must be a declared hitl_state); trigger; actor. Returns: the
+            instance (AWAITING_HITL). Raises: ``IllegalTransition`` if ``to_state`` is not a hitl_state
+            (so the method's name can't lie about the resulting status).
+        中文：参数：instance_id；to_state（须为声明的 hitl_state）；trigger；actor。返回：实例（AWAITING_HITL）。
+            抛出：若 ``to_state`` 非 hitl_state 则 ``IllegalTransition``（使方法名不与结果状态相悖）。
         """
+        if to_state not in self.definition.hitl_states:
+            raise IllegalTransition(f"{to_state!r} is not a declared hitl_state")
         return self.transition(instance_id, to_state, trigger=trigger, actor=actor)
 
     def resume_hitl(self, instance_id: str, *, to_state: str, decision: str, actor: str = "system") -> ProcessInstance:
@@ -216,9 +236,13 @@ class ProcessEngine:
     def suspend(self, instance_id: str, *, to_state: str, trigger: str, actor: str = "system") -> ProcessInstance:
         """Suspend to await an external event (logical — no wall-clock assumption).
 
-        EN: Args: instance_id; to_state (a declared suspend_state); trigger; actor. Returns: the instance (SUSPENDED).
-        中文：参数：instance_id；to_state（声明的 suspend_state）；trigger；actor。返回：实例（SUSPENDED）。
+        EN: Args: instance_id; to_state (must be a declared suspend_state); trigger; actor. Returns: the
+            instance (SUSPENDED). Raises: ``IllegalTransition`` if ``to_state`` is not a suspend_state.
+        中文：参数：instance_id；to_state（须为声明的 suspend_state）；trigger；actor。返回：实例（SUSPENDED）。
+            抛出：若 ``to_state`` 非 suspend_state 则 ``IllegalTransition``。
         """
+        if to_state not in self.definition.suspend_states:
+            raise IllegalTransition(f"{to_state!r} is not a declared suspend_state")
         return self.transition(instance_id, to_state, trigger=trigger, actor=actor)
 
     def resume(self, instance_id: str, *, to_state: str, trigger: str, actor: str = "system") -> ProcessInstance:
@@ -230,22 +254,32 @@ class ProcessEngine:
         return self.transition(instance_id, to_state, trigger=trigger, actor=actor)
 
     def fail(self, instance_id: str, *, reason: str, actor: str = "system") -> ProcessInstance:
-        """Mark an instance FAILED (unrecoverable error) and log the terminal transition.
+        """Mark an instance FAILED (unrecoverable error) and log the terminal transition (atomic).
 
-        EN: Args: instance_id; reason; actor. Returns: the instance (FAILED). (FAILED is a status, not a
-            declared to-state, so it is set directly with a self-referential history record.)
-        中文：参数：instance_id；reason；actor。返回：实例（FAILED）。（FAILED 是状态而非声明的 to-state，故直接设置并记一条
-            自指历史。）
+        EN —
+        FAILED is a *status* that overlays any state (Plan §1.7's ``[any] → failed``), so — by design — this
+        is the one path that intentionally **bypasses** the declarative ``is_legal`` guardrail (forcing every
+        definition to declare ``→failed`` from every state would be noise). It writes a self-referential
+        history record (``from == to``, ``trigger=fail:<reason>``) atomically via ``apply``.
+        Args: instance_id; reason; actor. Returns: the instance (FAILED). Raises: ``IllegalTransition`` if the
+        instance is unknown or already terminal (DONE/FAILED — do not overwrite a terminal outcome).
+
+        中文 —
+        FAILED 是覆盖任意状态的*状态*（计划 §1.7 的 ``[any] → failed``），故按设计这是唯一刻意**绕过**声明式 ``is_legal``
+        守卫的路径（要求每个定义从每个状态都声明 ``→failed`` 是噪音）。经 ``apply`` 原子写一条自指历史（``from == to``，
+        ``trigger=fail:<reason>``）。参数：instance_id；reason；actor。返回：实例（FAILED）。抛出：实例未知或已终止
+        （DONE/FAILED——不覆盖终止结局）时 ``IllegalTransition``。
         """
         inst = self.store.load_instance(instance_id)
         if inst is None:
             raise IllegalTransition(f"unknown instance {instance_id!r}")
+        if inst.status in (Status.DONE, Status.FAILED):
+            raise IllegalTransition(f"instance {instance_id!r} is already terminal ({inst.status.value})")
         now = self._clock()
         from_state = inst.current_state
         inst.status = Status.FAILED
         inst.updated_at = now
-        self.store.save_instance(inst)
-        self.store.append_transition(Transition(instance_id, from_state, from_state, f"fail:{reason}", now, actor))
+        self.store.apply(inst, Transition(instance_id, from_state, from_state, f"fail:{reason}", now, actor))
         return inst
 
 

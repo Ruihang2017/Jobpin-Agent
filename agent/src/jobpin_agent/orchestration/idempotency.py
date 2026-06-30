@@ -61,10 +61,13 @@ class IdempotencyStore:
         existing = self._store.idem_get(key)
         if existing is not None:
             return existing.get("result", ""), False
-        now = datetime.now(timezone.utc).isoformat()
-        self._store.idem_put(key, "pending", "", now)  # register intent BEFORE executing
-        result = effect_fn()                            # the external side effect
-        self._store.idem_put(key, "done", str(result), now)
+        # Atomically CLAIM the key as pending (plain INSERT; the PK makes exactly one racer win). A
+        # concurrent/replayed claim loses here and skips — closing the check-then-act double-send race (M2).
+        if not self._store.idem_begin(key, datetime.now(timezone.utc).isoformat()):
+            existing = self._store.idem_get(key) or {}
+            return existing.get("result", ""), False
+        result = effect_fn()                                                       # the external side effect
+        self._store.idem_complete(key, str(result), datetime.now(timezone.utc).isoformat())  # mark done (own ts)
         return str(result), True
 
 

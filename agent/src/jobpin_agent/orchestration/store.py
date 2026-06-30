@@ -93,6 +93,34 @@ class OrchestrationStore:
         )
         self._conn.commit()
 
+    def apply(self, inst: ProcessInstance, transition: Transition) -> None:
+        """Upsert the instance AND append its transition in ONE transaction (atomic) — §1.7 M1 fix.
+
+        EN —
+        The engine's state advance and its audit record must commit together: a crash between two separate
+        commits would leave ``current_state`` advanced with no transition explaining it, silently breaking
+        the append-only audit chain (the triple-review M1). Both writes share one implicit SQLite
+        transaction, committed once — so a recovered instance's state and its history can never diverge.
+        (Mirrors ``core/session_store.py::compact``'s single-commit pattern.) Args: inst; transition. Returns: None.
+
+        中文 —
+        引擎的状态推进与其审计记录必须一起提交：两次独立提交之间崩溃会使 ``current_state`` 推进却无解释它的转移，悄然
+        破坏仅追加审计链（三方评审 M1）。两次写入共享一个隐式 SQLite 事务、提交一次——故恢复实例的状态与历史绝不背离。
+        （对应 ``core/session_store.py::compact`` 的单次提交。）参数：inst；transition。返回：None。
+        """
+        self._conn.execute(
+            "INSERT OR REPLACE INTO process_instances VALUES (?, ?, ?, ?, ?, ?)",
+            (inst.instance_id, inst.process_type, inst.current_state, inst.status.value,
+             inst.context_ref, inst.updated_at),
+        )
+        self._conn.execute(
+            "INSERT INTO transitions (instance_id, from_state, to_state, trigger, at, actor) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (transition.instance_id, transition.from_state, transition.to_state,
+             transition.trigger, transition.at, transition.actor),
+        )
+        self._conn.commit()  # single commit → instance + transition land atomically
+
     def transitions_for(self, instance_id: str) -> List[Transition]:
         """Read an instance's transition history in order.
 
@@ -131,6 +159,44 @@ class OrchestrationStore:
         """
         self._conn.execute("INSERT OR REPLACE INTO idempotency VALUES (?, ?, ?, ?)", (key, status, result, at))
         self._conn.commit()
+
+    def idem_begin(self, key: str, at: str = "") -> bool:
+        """Atomically claim a key as ``pending`` via a plain INSERT — returns False if already claimed.
+
+        EN —
+        Race-safe registration (the triple-review M2 fix): a plain ``INSERT`` relies on the ``key`` PRIMARY
+        KEY, so exactly one racer wins; a concurrent (or replayed) claim raises ``IntegrityError`` and
+        returns False. Unlike ``idem_put`` (``INSERT OR REPLACE``), this does NOT overwrite an existing
+        claim, so "never double-execute" holds even across processes. Args: key; at. Returns: True if newly
+        claimed, False if the key already exists.
+
+        中文 —
+        竞态安全登记（三方评审 M2 修复）：纯 ``INSERT`` 依赖 ``key`` 主键，故恰有一个竞争者胜出；并发（或重放）登记抛
+        ``IntegrityError`` 并返回 False。与 ``idem_put``（``INSERT OR REPLACE``）不同，本方法**不**覆盖既有登记，故
+        “绝不重复执行”即使跨进程也成立。参数：key；at。返回：新登记则 True，键已存在则 False。
+        """
+        try:
+            self._conn.execute(
+                "INSERT INTO idempotency (key, status, result, at) VALUES (?, 'pending', '', ?)", (key, at))
+            self._conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def idem_complete(self, key: str, result: str, at: str = "") -> None:
+        """Mark a claimed key ``done`` with its result (UPDATE; does not create).
+
+        EN: Args: key; result; at (completion time). Returns: None. 中文：参数：key；result；at（完成时间）。返回：None。
+        """
+        self._conn.execute("UPDATE idempotency SET status='done', result=?, at=? WHERE key=?", (result, at, key))
+        self._conn.commit()
+
+    def close(self) -> None:
+        """Close the SQLite connection (hygiene; matches the local-store pattern).
+
+        EN: Returns: None. 中文：返回：None。
+        """
+        self._conn.close()
 
 
 __all__ = ["OrchestrationStore"]
