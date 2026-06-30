@@ -21,7 +21,8 @@ offline and deterministically (the OpenAI integration test skips unless
 - `governance/` — §1.5 HR memory governance tests (see its own README).
 - `security/` — §1.6 injection-defence tests (threat patterns, scrubber, ingest, scan wiring; see its own README).
 - `orchestration/` — §1.7 Layer B tests (store, state machine, idempotency, recovery, persistence contracts; see its own README).
-- `data/` — fixtures (the system-prompt golden file).
+- `data_model/` — §1.8 canonical data model + audit tests (schema, migrations, audit, store; see its own README).
+- `data/` — fixtures (the system-prompt golden file). *(Not a test package — static fixtures only.)*
 
 ## 中文
 Agent 内核的 pytest 测试。每个源模块对应一个测试模块；全部离线且确定性运行（OpenAI 集成测试在未设置
@@ -43,4 +44,5 @@ Agent 内核的 pytest 测试。每个源模块对应一个测试模块；全部
 - `governance/` — §1.5 HR 记忆治理测试（见其自身 README）。
 - `security/` — §1.6 注入防御测试（威胁模式、清洗器、ingest、扫描接线；见其自身 README）。
 - `orchestration/` — §1.7 Layer B 测试（存储、状态机、幂等、恢复、持久化契约；见其自身 README）。
-- `data/` — 固定装置（系统提示黄金文件）。
+- `data_model/` — §1.8 规范数据模型 + 审计测试（schema、migrations、audit、store；见其自身 README）。
+- `data/` — 固定装置（系统提示黄金文件）。*（非测试包——仅静态固定装置。）*
