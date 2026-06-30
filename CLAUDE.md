@@ -336,9 +336,9 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 ## 8. Current status & next steps
 
 **Status:**
-- **`main` now holds §1.1 → §1.6** (merged via PRs #3–#7; `origin/main` tip = the §1.6 merge). The
-  per-point "**Not merged**" notes on §1.2–§1.6 below are **historical** (they were written pre-merge).
-  **§1.7 is complete on `phase0/1.7-orchestration` (off `main`) and is the one point not yet merged.**
+- **`main` now holds §1.1 → §1.7** (merged via PRs #3–#8; `origin/main` tip = the §1.7 merge). The
+  per-point "**Not merged**" notes on §1.2–§1.7 below are **historical** (they were written pre-merge).
+  **§1.8 is complete on `phase0/1.8-canonical-data-audit` (off `main`) and is the one point not yet merged.**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
@@ -401,15 +401,28 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   needed (all three confirmed Plan/PRD consistency); spec updated (atomic-persistence contract + honesty
   notes). **25 §1.7 tests; full suite 200 passed, 2 skipped.** **Not merged.** Deferred: real recruitment
   states → M3; agent-turn + routing-failure suspend/fallback → §1.11; canonical-audit reconciliation → §1.8;
-  Temporal/LangGraph upgrade only if the contract fails → §1.12 spike.
+  Temporal/LangGraph upgrade only if the contract fails → §1.12 spike. (Merged to `main` in PR #8.)
+- Phase 0 **§1.8 Canonical data model + local audit log: complete** on `phase0/1.8-canonical-data-audit`
+  (off `main`); **one cohesive cycle**. Net-new `data/` package (no Hermes port): the M1–M3 canonical
+  entities (`Candidate/Job/Application/Interview/Consent/Org/User`) + the `AuditRecord`/`MemoryRecord` seam
+  tables; in-house **roll-forward/back migrations**; a **thread-safe** canonical append-only `AuditStore`
+  (dual-timestamp, read+write actions incl. the `recall`/`rejected:rbac` deferred from §1.5/§1.6) that
+  **reconciles the §1.5 governance audit + §1.7 transitions by import (non-invasive, no rewire)**; the
+  entity↔memory mapping doc + the data-subject read surface (`consents_for_candidate`, `memory_records_under`).
+  **Standalone — `core/memory/governance/orchestration` byte-unchanged** (git-verified). Triple-reviewed
+  (all three **YES**, conditional on one agreed MAJOR — audit thread-safety — **fixed** + minors: migrate
+  achieved-version, LIKE-escape, read surface, one-shot-import doc); Plan §1.8 softened (EN+中文: "queries
+  start from the canonical table" → "after reconciliation import"; "reproduced" clarified). **13 §1.8 tests;
+  full suite 214 passed, 2 skipped.** **Not merged.** Deferred: full 16-entity model + event sourcing +
+  multi-tenant infra → Phase 2; emitter rewire + crypto tamper-evidence → Phase 2; canonical↔§1.4 sync +
+  real entity rows → M3; the APP-12 access portal → F3.6.
 
-**Branch:** `phase0/1.7-orchestration` (off `main`, which holds §1.1–§1.6).
+**Branch:** `phase0/1.8-canonical-data-audit` (off `main`, which holds §1.1–§1.7).
 
 **Immediate next steps:**
-1. **Land §1.7:** owner merges `phase0/1.7-orchestration → main` (kept gate; auto-deploys Netlify).
-2. **Next planned point — §1.8 (Canonical data model + local audit log):** the relational data model +
-   the canonical append-only `AuditRecord` that folds in the §1.5 governance audit + the §1.7 transition log
-   (and lands the read/recall audit deferred from §1.5/§1.6, with the §1.0 dual-timestamp). (Then §1.9 =
-   security baseline reusing `rbac.scope_predicate`; §1.10 = integration/MCP connectors; §1.11 = model router
-   + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture spikes,
-   incl. the Temporal/LangGraph upgrade decision for §1.7.)
+1. **Land §1.8:** owner merges `phase0/1.8-canonical-data-audit → main` (kept gate; auto-deploys Netlify).
+2. **Next planned point — §1.9 (Security baseline, local-first):** RBAC/ABAC (same source as the §1.5
+   `rbac.scope_predicate`, now reading the §1.8 `User`/`Org` entities), at-rest encryption (DPAPI/Keychain
+   master key), and the first threat-modelling review. (Then §1.10 = integration/MCP connectors; §1.11 =
+   model router + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture
+   spikes, incl. the Temporal/LangGraph upgrade decision for §1.7.)

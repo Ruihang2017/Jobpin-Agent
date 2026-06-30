@@ -13,6 +13,7 @@ reference, so these explain decisions, not just code. Naming:
 - `p0-1.5-hr-memory-governance-EN.md` / `p0-1.5-hr-memory-governance.md` — Phase 0 §1.5 HR memory governance (write-gate + governed memory tool, RBAC, erasure, retention, bias hygiene, audit).
 - `p0-1.6-injection-defence-EN.md` / `p0-1.6-injection-defence.md` — Phase 0 §1.6 injection-defence port (threat patterns + streaming scrubber + external-ingest door) + pre-compression fact-injection wiring.
 - `p0-1.7-orchestration-EN.md` / `p0-1.7-orchestration.md` — Phase 0 §1.7 Layer B long-running orchestration skeleton (declarative state machine + idempotency + crash recovery; the 3 persistence contracts).
+- `p0-1.8-canonical-data-audit-EN.md` / `p0-1.8-canonical-data-audit.md` — Phase 0 §1.8 canonical data model + local audit log (M1–M3 entities + migrations + the canonical append-only audit reconciling the §1.5/§1.7 forerunners).
 - `p0-vertical-slice-hiring-EN.md` / `p0-vertical-slice-hiring.md` — Phase 0 thin hiring vertical slice with a real LLM (pulls §1.15 forward).
 
 ## 中文
@@ -26,4 +27,5 @@ reference, so these explain decisions, not just code. Naming:
 - `p0-1.5-hr-memory-governance-EN.md` / `p0-1.5-hr-memory-governance.md` — Phase 0 §1.5 HR 记忆治理（写门控 + 受治理记忆工具、RBAC、擦除、留存、偏见卫生、审计）。
 - `p0-1.6-injection-defence-EN.md` / `p0-1.6-injection-defence.md` — Phase 0 §1.6 注入防御移植（威胁模式 + 流式清洗器 + 外部 ingest 入口）+ 压缩前事实注入接线。
 - `p0-1.7-orchestration-EN.md` / `p0-1.7-orchestration.md` — Phase 0 §1.7 Layer B 长程编排骨架（声明式状态机 + 幂等 + 崩溃恢复；三条持久化契约）。
+- `p0-1.8-canonical-data-audit-EN.md` / `p0-1.8-canonical-data-audit.md` — Phase 0 §1.8 规范数据模型 + 本地审计日志（M1–M3 实体 + 迁移 + 对账 §1.5/§1.7 先行者的规范仅追加审计）。
 - `p0-vertical-slice-hiring-EN.md` / `p0-vertical-slice-hiring.md` — Phase 0 真实 LLM 的薄招聘垂直切片（提前 §1.15）。

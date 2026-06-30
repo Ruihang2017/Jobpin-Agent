@@ -20,8 +20,11 @@ orchestration, integration, and the AI/eval platform as sibling subpackages.
 - `orchestration/` — Layer B long-running orchestration (§1.7): the in-house
   lightweight state machine (declarative definition + engine, SQLite persistence,
   idempotency, crash recovery) — the cross-day, resumable hiring-loop skeleton.
+- `data/` — canonical data model + local audit log (§1.8): the M1–M3 relational
+  entities + migrations + the canonical append-only audit (folds in the §1.5/§1.7
+  forerunners), the relational source of truth + forensics layer.
 
-Planned siblings (later points): `data/`, `integration/`, `ai/`, `eval/`, `obs/`.
+Planned siblings (later points): `integration/`, `ai/`, `eval/`, `obs/`.
 
 ## 中文
 Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A）；后续生产计划节点将以同级子包形式加入记忆、
@@ -37,5 +40,7 @@ Jobpin Agent 产品的可导入 Python 包。目前包含 Agent 内核（Layer A
   （压缩接线位于 `core/compression.py`。）
 - `orchestration/` — Layer B 长程编排（§1.7）：自建轻量状态机（声明式定义 + 引擎、SQLite 持久化、幂等、崩溃恢复）
   ——跨天、可恢复的招聘 loop 骨架。
+- `data/` — 规范数据模型 + 本地审计日志（§1.8）：M1–M3 关系实体 + 迁移 + 规范仅追加审计（折入 §1.5/§1.7 先行者），
+  关系事实来源 + 取证层。
 
-规划中的同级目录（后续节点）：`data/`、`integration/`、`ai/`、`eval/`、`obs/`。
+规划中的同级目录（后续节点）：`integration/`、`ai/`、`eval/`、`obs/`。

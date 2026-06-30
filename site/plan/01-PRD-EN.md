@@ -16,7 +16,7 @@
 | Item | Content |
 |---|---|
 | Document version | v0.3 (Draft; adds architecture selection and kernel comparison, in-depth treatment of the memory system; converged onto Australia + local-first) |
-| Status | Approved baseline; implementation plan derived (`02-Production-Plan`); Phase 0 in progress (2026-06) — Agent Core §1.1 + Memory Subsystem §1.2–1.4 + HR memory governance §1.5 + injection-defence/pre-compression §1.6 + Layer B orchestration skeleton §1.7 built (§1.1–§1.6 merged to `main`; §1.7 complete, in merge) |
+| Status | Approved baseline; implementation plan derived (`02-Production-Plan`); Phase 0 in progress (2026-06) — Agent Core §1.1 + Memory Subsystem §1.2–1.4 + HR memory governance §1.5 + injection-defence/pre-compression §1.6 + Layer B orchestration §1.7 + canonical data model/audit §1.8 built (§1.1–§1.7 merged to `main`; §1.8 complete, in merge) |
 | Author | Product owner (TBD) |
 | Date | 2026-06-24 |
 | Related documents | `02-Production-Plan.md` (industrial-grade delivery roadmap) |

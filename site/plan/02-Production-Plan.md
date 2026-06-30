@@ -479,7 +479,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
                   provenance, consent_label, retention_policy }     # 串联 1.4/1.5
 ```
 
-`AuditRecord` 与 `MemoryRecord` 是把第 1.0 节公共词汇、1.4 向量记录、1.5 治理 schema 落到关系层的"接缝表"——所有治理 / 审计查询从这两张表出发。
+`AuditRecord` 与 `MemoryRecord` 是把第 1.0 节公共词汇、1.4 向量记录、1.5 治理 schema 落到关系层的"接缝表"——所有治理 / 审计查询从这两张表出发。（§1.8 实现说明：规范审计是对 §1.5 治理审计 + §1.7 转移日志做**对账导入之后**的统一查询入口——一次性、非幂等快照。把这些发射器重写为直接写规范存储是第二阶段整合；MVP 中先行者继续本地发射、按需导入。）
 
 **交付物（Deliverables）**：
 - [ ] `data/schema`：规范实体的本地关系库 schema + 迁移脚本。
@@ -490,7 +490,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **退出标准（Exit）**：
 - M1–M3 子集 schema 落地，迁移脚本可前向 / 回滚。
-- 任一"影响个人"的操作在审计日志留下 who/what/when/why 记录，可被查询复现。
+- 任一"影响个人"的操作在审计日志留下 who/what/when/why 记录，可被查询复现。（此处"复现" = 痕迹可经**查询仅追加日志重建**——按个体 `target_key` 过滤即得最早在前的 who/what/when/why——**而非**事件溯源式状态重建；MVP 不强制事件溯源。）
 
 ---
 
