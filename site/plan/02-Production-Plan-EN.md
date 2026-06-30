@@ -496,7 +496,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 ### 1.9 Workstream: Security baseline (local-first)
 
-**What (contract)**: At-rest encryption of local data and memory, access control, key / secret management, and (in enterprise scenarios) SSO — under local-first, "security" is both a privacy selling point and an NDB safe harbour.
+**What (contract)**: At-rest encryption of local data and memory, access control, key / secret management, and (in enterprise scenarios) SSO — under local-first, "security" is both a privacy selling point and an NDB **serious-harm-mitigating control** (strong at-rest encryption weighs against a finding of "serious harm" in a breach assessment; it is **not** a statutory safe harbour — see PRD §11.5, "do not overstate as avoidance").
 
 > **Phase 0 scope decision (2026-06-30)**: Of this workstream, Phase 0 ships only the two items the core asset and the compliance pitch *depend on* and that are expensive to retrofit into the data / recall layer — **at-rest encryption + OS-keystore key handling** and the **RBAC/ABAC engine** (the §1.5 memory-recall filter reuses it). The rest — **field-level encryption, secret management (store + rotation), SSO, and update-package signing / integrity** — is **deferred to a later phase (Phase 1+)**, each built when its trigger arrives (real customer BYO-keys / multiple connector creds → secrets; the first enterprise pilot → SSO; the auto-update / distribution hardening → signing; a data-layer hardening pass → field-level encryption). The Phase 0 exit bar (§1.16) is **unchanged**: it already gates only the two kept foundations.
 
@@ -631,7 +631,7 @@ golden_case := {
 **What (contract)**: A prototype for packaging / distributing / auto-updating the local application, CI/CD, environment tiering, a test framework, and (for the optional cloud components and CI) IaC.
 
 **Scope**:
-- **Local application packaging / distribution**: a one-click installer (Windows first) + an auto-update prototype (including the 1.9 signing / integrity verification).
+- **Local application packaging / distribution**: a one-click installer (Windows first) + an auto-update prototype. *(The update-package signing / integrity verification **co-defers with §1.9 `security/integrity`** to a later phase — see the §1.9 Phase-0 scope decision; Phase 0 ships the install + auto-update prototype **without** the signing requirement.)*
 - **Automatic local-backup prototype**: SMBs with no IT cannot install / will not back up — a real adoption barrier; backup must be a built-in product feature.
 - **CI/CD**: a unit / integration test framework + an eval gate (interfacing with 1.11).
 - **IaC**: only for the optional cloud components and CI (the MVP needs no cloud infrastructure locally).
@@ -644,7 +644,7 @@ golden_case := {
 **Implementation Notes (How)**: the local-backup prototype must include the storage "outside HERMES_HOME" declared by `MemoryProvider.backup_paths()` (GROUNDING: `backup_paths()` is designed precisely for this), or the vector store / external-provider data is missed from backups; any failure among unit + integration + eval smoke blocks the merge.
 
 **Exit Criteria**:
-- The local application can be **one-click installed and auto-updated** (prototype); the installer passes signing / integrity verification.
+- The local application can be **one-click installed and auto-updated** (prototype). *(Signing / integrity verification co-defers with §1.9 — see Scope — so it is **not** a Phase-0 exit requirement.)*
 - CI runs unit + integration + eval smoke on every commit, with a gate that can block the merge.
 
 ---
