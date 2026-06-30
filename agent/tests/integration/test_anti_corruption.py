@@ -30,6 +30,14 @@ def test_translate_job_maps_external_fields():
     assert jobs[0].job_id == "R-9" and jobs[0].title == "Senior Engineer"
 
 
+def test_translate_application_maps_external_fields():
+    """The fake ATS's ext_app/ext_cand/ext_req map to Application fields. 中文 — 申请外部字段映射到 Application。"""
+    conn = FakeATSConnector()
+    acl = FakeATSAntiCorruption()
+    apps = [acl.translate(r) for r in conn.fetch("application")]
+    assert apps[0].application_id == "AP-1" and apps[0].candidate_id == "A-1" and apps[0].job_id == "R-9"
+
+
 def test_unknown_kind_raises():
     """An unknown external kind fails closed. 中文 — 未知外部 kind 失败即关闭。"""
     acl = FakeATSAntiCorruption()

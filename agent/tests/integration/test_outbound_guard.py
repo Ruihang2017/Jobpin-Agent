@@ -32,6 +32,20 @@ def test_switch_off_runs_and_audits():
     assert rows[0].result == "ok" and rows[0].actor == "alice" and "fields=[candidate]" in rows[0].reason
 
 
+def test_switch_off_failed_call_records_error_and_reraises():
+    """A failing outbound call records egress/error (not ok) and propagates. 中文 — 失败的出站记 egress/error 并向上抛。"""
+    store = CanonicalStore(db_path=":memory:")
+    g = OutboundGuard(fully_local=False, audit=store.audit)
+
+    def boom():
+        raise RuntimeError("network down")
+
+    with pytest.raises(RuntimeError):
+        g.send(target="fake-ats", fields=["candidate"], reason="pull:candidate", call=boom)
+    rows = store.audit.query(action="egress")
+    assert len(rows) == 1 and rows[0].result == "error"
+
+
 def test_fully_local_records_blocked_attempt():
     """A blocked attempt still leaves an egress/rejected:fully_local trace. 中文 — 被阻断的尝试仍留下 egress/rejected:fully_local 轨迹。"""
     store = CanonicalStore(db_path=":memory:")

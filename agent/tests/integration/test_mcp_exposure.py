@@ -27,6 +27,18 @@ def test_toolspecs_registered_and_run():
     assert store.get_candidate("A-1") is not None
 
 
+def test_two_kinds_each_handler_ingests_its_own_kind():
+    """Two kinds → each ToolSpec handler ingests its OWN kind (locks the closure binding). 中文 — 两类各自入库（锁定闭包绑定）。"""
+    store = CanonicalStore(db_path=":memory:")
+    svc = IntegrationService(store, OutboundGuard(fully_local=False, audit=store.audit))
+    specs = connector_toolspecs(svc, FakeATSConnector(), FakeATSAntiCorruption(), ["candidate", "job"])
+    by_name = {s.name: s for s in specs}
+    assert by_name["fake-ats_pull_job"].handler({})         # job handler runs the job ingest
+    assert store.get_job("R-9") is not None
+    assert by_name["fake-ats_pull_candidate"].handler({})
+    assert store.get_candidate("A-1") is not None
+
+
 def test_fully_local_handler_returns_blocked_string():
     """A fully-local handler call returns a blocked message, not an exception. 中文 — 完全本地处理函数返回阻断消息而非异常。"""
     store = CanonicalStore(db_path=":memory:")

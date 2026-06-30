@@ -50,22 +50,27 @@ class IntegrationService:
 
         EN —
         Args: connector; acl; kind (``candidate``/``job``/``application``). Returns: ``IngestResult``.
-        Raises: ``OutboundBlocked`` if the fully-local switch is on (the fetch never runs); ``ValueError``
-            on an unknown kind (from the ACL).
+        Raises: ``ValueError`` on an unknown kind (checked BEFORE any egress, so a bad kind never triggers
+            an outbound call); ``OutboundBlocked`` if the fully-local switch is on (the fetch never runs).
 
         中文 —
         参数：connector；acl；kind（``candidate``/``job``/``application``）。返回：``IngestResult``。
-        抛出：完全本地开关打开时抛 ``OutboundBlocked``（fetch 绝不运行）；未知 kind 时抛 ``ValueError``（来自 ACL）。
+        抛出：未知 kind 时抛 ``ValueError``（在任何出站**之前**校验，故坏 kind 绝不触发出站）；完全本地开关打开时抛
+            ``OutboundBlocked``（fetch 绝不运行）。
         """
+        upsert_by_kind = {
+            "candidate": self._store.upsert_candidate,
+            "job": self._store.upsert_job,
+            "application": self._store.upsert_application,
+        }
+        if kind not in upsert_by_kind:
+            # Validate BEFORE the (conceptually outbound) fetch — never waste an egress on a bad kind.
+            raise ValueError(f"unknown ingest kind: {kind}")
         records = self._guard.send(
             target=connector.name, fields=[kind], reason=f"pull:{kind}",
             call=lambda: connector.fetch(kind),
         )
-        upsert = {
-            "candidate": self._store.upsert_candidate,
-            "job": self._store.upsert_job,
-            "application": self._store.upsert_application,
-        }[kind]
+        upsert = upsert_by_kind[kind]
         count = 0
         for rec in records:
             upsert(acl.translate(rec))

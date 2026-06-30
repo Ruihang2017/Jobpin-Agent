@@ -24,6 +24,9 @@ _FIXTURES = {
     "job": [
         {"ext_req": "R-9", "req_title": "Senior Engineer", "state": "open"},
     ],
+    "application": [
+        {"ext_app": "AP-1", "ext_cand": "A-1", "ext_req": "R-9"},
+    ],
 }
 
 
@@ -73,5 +76,8 @@ class FakeATSAntiCorruption(AntiCorruptionLayer):
         return Job(job_id=raw["ext_req"], title=raw.get("req_title", ""), status=raw.get("state", "open"))
 
     def _to_application(self, raw: dict) -> Application:
-        """``ext_app``→application_id, ``ext_cand``→candidate_id, ``ext_req``→job_id. 中文 — 见英文映射。"""
+        """``ext_app``→application_id, ``ext_cand``→candidate_id, ``ext_req``→job_id.
+
+        中文 — ``ext_app``→application_id，``ext_cand``→candidate_id，``ext_req``→job_id。
+        """
         return Application(application_id=raw["ext_app"], candidate_id=raw["ext_cand"], job_id=raw["ext_req"])

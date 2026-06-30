@@ -65,12 +65,22 @@ class OutboundGuard:
         参数：target（外部系统）；fields（离开的字段集——编码进审计 reason）；reason（目的，如 ``pull:candidate``）；
             deid_status（§1.11 接缝；脱敏上线前为 ``none``）；call（实际出站操作，仅当 ``fully_local`` 为 False 时调用）。
         返回：``call()`` 的结果（开关关闭）。抛出：``OutboundBlocked``（开关打开）——``call`` 不被调用，保证 0 出站。
+        审计：完全本地时在抛错**前**记一行 ``rejected:fully_local``；开关关闭时在调用**之后**按真实结果记 ``ok`` 或
+        ``error``（失败则再抛出），使该出站轨迹如实反映结果。
         """
         detail = f"{reason} fields=[{','.join(fields)}] deid={deid_status}"
         if self.fully_local:
             if self._audit is not None:
                 self._audit.record(self._actor, "egress", target, reason=detail, result="rejected:fully_local")
             raise OutboundBlocked(f"fully-local mode: outbound to {target} blocked")
+        # Switch off: run the call and record the egress with its TRUE outcome (so a failed networked
+        # call is never logged as "ok" — this audit is the APP-8 cross-border-disclosure trail).
+        try:
+            result = call()
+        except Exception:
+            if self._audit is not None:
+                self._audit.record(self._actor, "egress", target, reason=detail, result="error")
+            raise
         if self._audit is not None:
             self._audit.record(self._actor, "egress", target, reason=detail, result="ok")
-        return call()
+        return result
