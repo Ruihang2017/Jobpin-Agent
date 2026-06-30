@@ -548,7 +548,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 **交付物（Deliverables）**：
 - [ ] `integration/sdk`：连接器 SDK + 反腐层基类。
 - [ ] `integration/mcp`：MCP 工具暴露骨架。
-- [ ] 一个只读 ATS/HRIS 连接器（OAuth）+ 契约测试。
+- [ ] 一个只读 ATS/HRIS 连接器（OAuth）+ 契约测试。*（Phase 0 交付**伪**连接器 + 契约测试；OAuth 与实时连接随真实 ATS 链路一并推迟——见范围决策。）*
 - [ ] "完全本地"开关 + 出站审计（每次出站记录目的 / 字段 / 脱敏状态）。
 
 **实现要点（How）**：外部字段不直接进规范实体、必经反腐层映射（外部 ATS 改字段只动反腐层，不波及 1.8 schema）；每次出站记 `actor / action=egress / target / reason / result` + 字段集 + 脱敏状态（脱敏由 1.11 `deid` 前置）。

@@ -548,7 +548,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 **Deliverables**:
 - [ ] `integration/sdk`: the connector SDK + anti-corruption layer base class.
 - [ ] `integration/mcp`: the MCP tool-exposure skeleton.
-- [ ] One read-only ATS/HRIS connector (OAuth) + contract tests.
+- [ ] One read-only ATS/HRIS connector (OAuth) + contract tests. *(Phase 0 ships a **fake** connector + contract tests; OAuth + the live connection defer with the real-ATS link — see the scope decision.)*
 - [ ] A "fully local" switch + outbound audit (each outbound logs purpose / fields / de-identification status).
 
 **Implementation Notes (How)**: external fields do not enter canonical entities directly but must be mapped through the anti-corruption layer (an external ATS changing a field touches only the anti-corruption layer, not the 1.8 schema); each outbound logs `actor / action=egress / target / reason / result` + the field set + de-identification status (de-identification is pre-applied by the 1.11 `deid`).
