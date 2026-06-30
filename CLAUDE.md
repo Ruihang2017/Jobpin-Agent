@@ -336,9 +336,9 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 ## 8. Current status & next steps
 
 **Status:**
-- **`main` now holds §1.1 → §1.5** (merged via PRs #3–#6; `origin/main` tip = the §1.5 merge). The
-  per-point "**Not merged**" notes on §1.2–§1.5 below are **historical** (they were written pre-merge).
-  **§1.6 is complete on `phase0/1.6-injection-defence` (off `main`) and is the one point not yet merged.**
+- **`main` now holds §1.1 → §1.6** (merged via PRs #3–#7; `origin/main` tip = the §1.6 merge). The
+  per-point "**Not merged**" notes on §1.2–§1.6 below are **historical** (they were written pre-merge).
+  **§1.7 is complete on `phase0/1.7-orchestration` (off `main`) and is the one point not yet merged.**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
@@ -387,16 +387,29 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   Triple-reviewed (senior **YES** — AST-verified the ports byte-identical; architect **YES** +1 MAJOR; PM
   **YES**-conditional +2 MAJORs → all fixed: fail-safe candidate/semantic scan, lossy-summariser proof,
   file-backed seam-level reconciliation); Plan corrected (EN+中文: file-backed matrix row → seam-level +
-  summariser-seam note). **30 §1.6 tests; full suite 175 passed, 2 skipped.** **Not merged.** Deferred
-  behind seams: real lossy LLM summariser + streaming model path + live résumé-ingest door + conversation
-  content-extraction → §1.11; full 1000-adversarial corpus → later; C2-pattern tuning for technical CVs → ongoing.
+  summariser-seam note). **30 §1.6 tests.** (Merged to `main` in PR #7.) Deferred behind seams: real lossy
+  LLM summariser + streaming model path + live résumé-ingest door + conversation content-extraction → §1.11;
+  full 1000-adversarial corpus → later; C2-pattern tuning for technical CVs → ongoing.
+- Phase 0 **§1.7 Layer B long-running orchestration skeleton: complete** on `phase0/1.7-orchestration`
+  (off `main`); **one cohesive cycle**. Net-new `orchestration/` package (no Hermes port): declarative
+  `ProcessDefinition` + `ProcessEngine` (validated transitions, atomic state+audit via `OrchestrationStore.apply`),
+  register-before-execute concurrency-safe `IdempotencyStore.run_once`, SQLite store with an append-only
+  transition history, `recover` crash-recovery loader. **Standalone Layer B — no `agent_loop.py` change**
+  (git-verified). The three persistence contracts pass with a toy process (crash recovery / cross-day
+  pause-resume / external side-effect idempotency). Triple-reviewed (architect + PM **YES**; senior **NO** →
+  M1 commit-atomicity + M2 idempotency-race **both fixed** + guards/negative tests); no Plan correction
+  needed (all three confirmed Plan/PRD consistency); spec updated (atomic-persistence contract + honesty
+  notes). **25 §1.7 tests; full suite 200 passed, 2 skipped.** **Not merged.** Deferred: real recruitment
+  states → M3; agent-turn + routing-failure suspend/fallback → §1.11; canonical-audit reconciliation → §1.8;
+  Temporal/LangGraph upgrade only if the contract fails → §1.12 spike.
 
-**Branch:** `phase0/1.6-injection-defence` (off `main`, which holds §1.1–§1.5).
+**Branch:** `phase0/1.7-orchestration` (off `main`, which holds §1.1–§1.6).
 
 **Immediate next steps:**
-1. **Land §1.6:** owner merges `phase0/1.6-injection-defence → main` (kept gate; auto-deploys Netlify).
-2. **Next planned point — §1.7 (Layer B long-running orchestration skeleton):** the in-house lightweight
-   hiring-loop state machine (cross-day, multi-party, resumable) — net-new Layer B (PRD §2.6), not a Hermes
-   port. (Then §1.8 = canonical data model + the read/recall audit deferred from §1.5/§1.6; §1.9 = security
-   baseline reusing `rbac.scope_predicate`; §1.11 = model router + de-id + résumé parsing + streaming + the
-   real lossy LLM summariser — which consumes the §1.6 `summarize_fn` / scrubber / `external_ingest` seams.)
+1. **Land §1.7:** owner merges `phase0/1.7-orchestration → main` (kept gate; auto-deploys Netlify).
+2. **Next planned point — §1.8 (Canonical data model + local audit log):** the relational data model +
+   the canonical append-only `AuditRecord` that folds in the §1.5 governance audit + the §1.7 transition log
+   (and lands the read/recall audit deferred from §1.5/§1.6, with the §1.0 dual-timestamp). (Then §1.9 =
+   security baseline reusing `rbac.scope_predicate`; §1.10 = integration/MCP connectors; §1.11 = model router
+   + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture spikes,
+   incl. the Temporal/LangGraph upgrade decision for §1.7.)

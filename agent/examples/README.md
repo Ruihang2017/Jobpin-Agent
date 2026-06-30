@@ -24,6 +24,12 @@ Scripts that demonstrate the core end-to-end.
   explainable, cited, **HITL-framed** shortlist. Uses a **real** OpenAI model + embeddings when
   `OPENAI_API_KEY` is set (`agent/.env`), else the offline fake model + lexical embedder.
   Synthetic résumés only. Run: `python agent/examples/hiring_slice_demo.py`.
+- `orchestration_demo.py` — **offline** §1.7 demo. Drives one hiring instance across four fresh-engine
+  "restarts" over the same SQLite file, visibly exercising the three Layer B persistence contracts: ②
+  cross-day suspend/resume (awaiting a background check), ① crash recovery (a fresh process resumes from
+  disk), and ③ idempotent offer email (sent exactly once, deduped on replay). No agent/LLM/connector
+  needed — states + side effect are illustrative stand-ins (real ones are M3/§1.10/§1.11). Run:
+  `python agent/examples/orchestration_demo.py`.
 
 ## 中文
 演示内核端到端的脚本。
@@ -41,3 +47,7 @@ Scripts that demonstrate the core end-to-end.
 - `hiring_slice_demo.py` — **招聘垂直切片**。ingest 合成简历 + 组织评分细则并提出招聘问题；agent 召回合适候选人并返回
   可解释、带引用、**HITL 框定**的候选名单。设置 `OPENAI_API_KEY`（`agent/.env`）时用**真实** OpenAI 模型 + 嵌入，
   否则用离线 fake 模型 + 词面嵌入器。仅合成简历。运行：`python agent/examples/hiring_slice_demo.py`。
+- `orchestration_demo.py` — **离线** §1.7 演示。把一个招聘实例驱动经四段“新引擎重启”（同一 SQLite 文件），直观演练
+  Layer B 三条持久化契约：② 跨天暂停/恢复（等背调）、① 崩溃恢复（新进程从磁盘恢复）、③ 幂等 offer 邮件（恰发一次、重放
+  去重）。无需 agent/LLM/连接器——状态与副作用为示意替身（真实者为 M3/§1.10/§1.11）。运行：
+  `python agent/examples/orchestration_demo.py`。
