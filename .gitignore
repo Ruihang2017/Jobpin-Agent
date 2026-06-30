@@ -9,6 +9,12 @@ Thumbs.db
 # Local secrets — never commit real keys (.env.example is the tracked template)
 .env
 
+# Local data stores + master key — never commit (§1.9: at-rest data + the OS-keystore key file)
+*.db
+*.sqlite
+*.sqlite3
+*.key
+
 # Local run traces
 agent/traces/
 

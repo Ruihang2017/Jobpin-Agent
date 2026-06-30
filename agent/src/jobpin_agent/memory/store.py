@@ -36,7 +36,10 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from ..security.cipher import Cipher
 
 try:
     import fcntl
@@ -126,6 +129,7 @@ class MemoryStore:
         recruiter_char_limit: int = 2000,
         scan_entry: Optional[ScanEntry] = None,
         write_gate: Optional[WriteGate] = None,
+        cipher: "Optional[Cipher]" = None,
     ) -> None:
         """Construct a store rooted at ``memory_dir``.
 
@@ -135,6 +139,8 @@ class MemoryStore:
             org_char_limit / recruiter_char_limit: bounded char budgets (high-SNR).
             scan_entry: threat scan returning a description or ``None`` (default pass-through).
             write_gate: optional approval hook (default pass-through).
+            cipher: optional §1.9 ``Cipher`` — when given, ORG.md / RECRUITER.md are encrypted at rest;
+                when ``None`` (default) the files are plaintext exactly as before.
         Call ``load_from_disk()`` before reading the snapshot.
 
         中文 —
@@ -143,6 +149,7 @@ class MemoryStore:
             org_char_limit / recruiter_char_limit：有界字符预算（高信噪比）。
             scan_entry：返回威胁描述或 ``None`` 的扫描（默认放行）。
             write_gate：可选审批钩子（默认放行）。
+            cipher：可选的 §1.9 ``Cipher``——给定时 ORG.md / RECRUITER.md 静态加密；为 ``None``（默认）时文件为明文，与此前完全一致。
         读取快照前先调用 ``load_from_disk()``。
         """
         self._memory_dir = Path(memory_dir)
@@ -151,6 +158,7 @@ class MemoryStore:
         self._snapshot: Dict[str, str] = {"org": "", "recruiter": ""}
         self._scan: ScanEntry = scan_entry or _no_scan
         self._write_gate = write_gate
+        self._cipher = cipher
 
     def load_from_disk(self) -> None:
         """Load entries from disk and freeze the system-prompt snapshot (ported).
@@ -169,7 +177,7 @@ class MemoryStore:
         """
         self._memory_dir.mkdir(parents=True, exist_ok=True)
         for target in ("org", "recruiter"):
-            entries = list(dict.fromkeys(self._read_file(self._path_for(target))))
+            entries = list(dict.fromkeys(self._read_file(self._path_for(target), self._cipher)))
             self._entries[target] = entries
             sanitized = self._sanitize_entries_for_snapshot(entries, _FILENAMES[target])
             self._snapshot[target] = self._render_block(target, sanitized)
@@ -270,7 +278,7 @@ class MemoryStore:
         返回：检测到外部漂移时返回备份路径（调用方须中止），否则 None。
         """
         bak = None if skip_drift else self._detect_external_drift(target)
-        fresh = list(dict.fromkeys(self._read_file(self._path_for(target))))
+        fresh = list(dict.fromkeys(self._read_file(self._path_for(target), self._cipher)))
         self._entries[target] = fresh
         return bak
 
@@ -281,7 +289,7 @@ class MemoryStore:
         中文：参数：target。经 temp→fsync→os.replace 写入。
         """
         self._memory_dir.mkdir(parents=True, exist_ok=True)
-        self._write_file(self._path_for(target), self._entries[target])
+        self._write_file(self._path_for(target), self._entries[target], self._cipher)
 
     def _char_count(self, target: str) -> int:
         """Current char count of a target (delimiter-joined). (ported)
@@ -617,22 +625,28 @@ class MemoryStore:
         return f"{separator}\n{header}\n{separator}\n{content}"
 
     @staticmethod
-    def _read_file(path: Path) -> List[str]:
-        """Read a memory file and split into entries. (ported)
+    def _read_file(path: Path, cipher: "Optional[Cipher]" = None) -> List[str]:
+        """Read a memory file and split into entries. (ported; optional at-rest decryption — §1.9)
 
         EN —
         No lock needed: ``_write_file`` uses atomic rename, so readers always see a
-        complete file. Splits on ``ENTRY_DELIMITER`` (not bare "§").
-        Args: path. Returns: the non-empty stripped entries (``[]`` if absent/empty).
+        complete file. Splits on ``ENTRY_DELIMITER`` (not bare "§"). When ``cipher`` is given the
+        on-disk bytes are decrypted first (§1.9 at-rest encryption); when ``None`` the original utf-8
+        text read is used unchanged.
+        Args: path; cipher. Returns: the non-empty stripped entries (``[]`` if absent/empty).
 
         中文 —
         无需加锁：``_write_file`` 用原子重命名，故读者总能看到完整文件。按 ``ENTRY_DELIMITER``（而非裸 "§"）切分。
-        参数：path。返回：非空、去空白的条目（缺失/为空则 ``[]``）。
+        给定 ``cipher`` 时先解密落盘字节（§1.9 静态加密）；为 ``None`` 时沿用原 utf-8 文本读取，行为不变。
+        参数：path；cipher。返回：非空、去空白的条目（缺失/为空则 ``[]``）。
         """
         if not path.exists():
             return []
         try:
-            raw = path.read_text(encoding="utf-8")
+            if cipher is None:
+                raw = path.read_text(encoding="utf-8")
+            else:
+                raw = cipher.decrypt(path.read_bytes()).decode("utf-8")
         except (OSError, IOError):
             return []
         if not raw.strip():
@@ -659,9 +673,17 @@ class MemoryStore:
         if not path.exists():
             return None
         try:
-            raw = path.read_text(encoding="utf-8")
+            if self._cipher is None:
+                raw = path.read_text(encoding="utf-8")
+            else:
+                raw = self._cipher.decrypt(path.read_bytes()).decode("utf-8")
         except (OSError, IOError):
             return None
+        except Exception:
+            if self._cipher is None:
+                raise  # off-path: preserve the §1.2 port's exact behaviour (no cipher → propagate)
+            # An encrypted file that will not decrypt = external tampering: back up + treat as drift.
+            return self._backup_drift(path)
         if not raw.strip():
             return None
         parsed = [e.strip() for e in raw.split(ENTRY_DELIMITER) if e.strip()]
@@ -669,36 +691,63 @@ class MemoryStore:
         limit = self._char_limit(target)
         max_entry_len = max((len(e) for e in parsed), default=0)
         if (raw.strip() != roundtrip) or (max_entry_len > limit):
-            ts = int(time.time())
-            bak_path = path.with_suffix(path.suffix + f".bak.{ts}")
-            try:
-                bak_path.write_text(raw, encoding="utf-8")
-            except (OSError, IOError):
-                return str(bak_path) + " (BACKUP FAILED — file unchanged on disk)"
-            return str(bak_path)
+            return self._backup_drift(path, raw)
         return None
 
+    def _backup_drift(self, path: Path, raw: Optional[str] = None) -> str:
+        """Snapshot the on-disk content to a timestamped ``.bak`` and return its path (ported helper).
+
+        EN —
+        Args: path; raw (the decoded text when available and unencrypted). When encryption is on (or
+        ``raw`` is None) the raw on-disk BYTES are backed up so no plaintext leaks into the ``.bak``;
+        otherwise the decoded text is written (the original behaviour). Returns: the ``.bak`` path, or
+        that path plus a failure marker if the backup write fails.
+
+        中文 —
+        参数：path；raw（可用且未加密时的解码文本）。加密开启（或 ``raw`` 为 None）时备份原始落盘字节，使明文不泄漏到
+        ``.bak``；否则写解码文本（原行为）。返回：``.bak`` 路径；备份写入失败时返回该路径加失败标记。
+        """
+        ts = int(time.time())
+        bak_path = path.with_suffix(path.suffix + f".bak.{ts}")
+        try:
+            if raw is not None and self._cipher is None:
+                bak_path.write_text(raw, encoding="utf-8")
+            else:
+                bak_path.write_bytes(path.read_bytes())
+        except (OSError, IOError):
+            return str(bak_path) + " (BACKUP FAILED — file unchanged on disk)"
+        return str(bak_path)
+
     @staticmethod
-    def _write_file(path: Path, entries: List[str]) -> None:
-        """Write entries atomically (temp → fsync → ``os.replace``). (ported)
+    def _write_file(path: Path, entries: List[str], cipher: "Optional[Cipher]" = None) -> None:
+        """Write entries atomically (temp → fsync → ``os.replace``). (ported; optional encryption — §1.9)
 
         EN —
         Atomic rename means concurrent readers always see the old or new complete file,
-        never a truncated one. Cleans up the temp file on any failure.
-        Args: path; entries.
+        never a truncated one. Cleans up the temp file on any failure. When ``cipher`` is given the
+        serialised content is encrypted to bytes before the atomic write (§1.9); when ``None`` the
+        original utf-8 text write is used unchanged.
+        Args: path; entries; cipher.
 
         中文 —
-        原子重命名意味着并发读者总能看到旧或新的完整文件，绝不见截断文件。任何失败都清理临时文件。
-        参数：path；entries。
+        原子重命名意味着并发读者总能看到旧或新的完整文件，绝不见截断文件。任何失败都清理临时文件。给定 ``cipher`` 时，
+        序列化内容在原子写前加密为字节（§1.9）；为 ``None`` 时沿用原 utf-8 文本写入，行为不变。
+        参数：path；entries；cipher。
         """
         content = ENTRY_DELIMITER.join(entries) if entries else ""
         try:
             fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp", prefix=".mem_")
             try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(content)
-                    f.flush()
-                    os.fsync(f.fileno())
+                if cipher is None:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(content)
+                        f.flush()
+                        os.fsync(f.fileno())
+                else:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(cipher.encrypt(content.encode("utf-8")))
+                        f.flush()
+                        os.fsync(f.fileno())
                 os.replace(tmp_path, path)
             except BaseException:
                 try:

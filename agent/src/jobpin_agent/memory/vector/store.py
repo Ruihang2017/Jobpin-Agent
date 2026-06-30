@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
+from ...security.db_encryption import open_encrypted_db
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, List, Optional, Set, Tuple
@@ -113,15 +115,15 @@ class SqliteVectorStore(VectorStore):
     单表；嵌入以 JSON 存储。所有 SQL 参数化。``search`` 为 O(n) 余弦——在数百–数千行下可接受，§1.12 后换为带索引后端。
     """
 
-    def __init__(self, db_path: str = ":memory:") -> None:
+    def __init__(self, db_path: str = ":memory:", cipher_key: bytes | None = None) -> None:
         """Open (or create) the store and ensure the schema.
 
-        EN: Args: db_path (``:memory:`` for an ephemeral DB).
-        中文：参数：db_path（``:memory:`` 为临时库）。
+        EN: Args: db_path (``:memory:`` for an ephemeral DB); cipher_key (§1.9 at-rest encryption when set).
+        中文：参数：db_path（``:memory:`` 为临时库）；cipher_key（设置时启用 §1.9 静态加密）。
         """
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
+        self._conn = open_encrypted_db(db_path, cipher_key)
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS vectors ("
             "vector_id TEXT PRIMARY KEY, memory_key TEXT, embed_model TEXT, embed_version TEXT, "

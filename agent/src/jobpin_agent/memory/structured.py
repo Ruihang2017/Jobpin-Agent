@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
+from ..security.db_encryption import open_encrypted_db
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -54,15 +56,15 @@ class CandidateStructuredStore:
     ``filter`` 载入行并应用 Python 谓词（在本地规模下足够）；``delete_by_key_prefix`` 与向量库一同支撑 §1.5 擦除级联。
     """
 
-    def __init__(self, db_path: str = ":memory:") -> None:
+    def __init__(self, db_path: str = ":memory:", cipher_key: bytes | None = None) -> None:
         """Open (or create) the store and ensure the schema.
 
-        EN: Args: db_path (``:memory:`` for ephemeral).
-        中文：参数：db_path（``:memory:`` 为临时）。
+        EN: Args: db_path (``:memory:`` for ephemeral); cipher_key (§1.9 at-rest encryption when set).
+        中文：参数：db_path（``:memory:`` 为临时）；cipher_key（设置时启用 §1.9 静态加密）。
         """
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
+        self._conn = open_encrypted_db(db_path, cipher_key)
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS candidates ("
             "memory_key TEXT PRIMARY KEY, name TEXT, skills TEXT, years INTEGER, "

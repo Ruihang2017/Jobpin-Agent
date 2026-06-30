@@ -8,7 +8,9 @@ overrides variables already present in the environment.
 """
 import os
 
-from jobpin_agent.core.config import _load_dotenv
+import pytest
+
+from jobpin_agent.core.config import CoreConfig, _load_dotenv
 
 
 def test_load_dotenv_sets_unset_keys_and_does_not_override(tmp_path):
@@ -32,3 +34,15 @@ def test_load_dotenv_sets_unset_keys_and_does_not_override(tmp_path):
     finally:
         os.environ.pop("JOBPIN_TEST_K1", None)
         os.environ.pop("JOBPIN_TEST_K2", None)
+
+
+def test_encryption_flag_fails_loud_until_wired():
+    """Setting ``encryption_enabled`` raises (no composition root wires it yet) — never silent plaintext.
+
+    EN: A compliance-first product must not let an operator believe data is encrypted when the flag is
+        inert; §1.9 makes it fail loud. Default (False) constructs fine.
+    中文：合规优先的产品不能让运维以为数据已加密而标志实为空转；§1.9 让其失败即响。默认（False）可正常构造。
+    """
+    assert CoreConfig().encryption_enabled is False  # default constructs fine
+    with pytest.raises(NotImplementedError):
+        CoreConfig(encryption_enabled=True)

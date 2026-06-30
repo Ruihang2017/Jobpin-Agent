@@ -12,6 +12,7 @@ regulated product is reviewed too**. A checklist plus conclusions, named
 - `p0-1.4-vector-entity-providers-review.md` — review of the §1.4 vector store + Candidate/Semantic providers + minimal Composite.
 - `p0-1.5-hr-memory-governance-review.md` — review of the §1.5 governance package (write-gate, bias hygiene, RBAC, erasure, audit) + the governed memory tool.
 - `p0-1.6-injection-defence-review.md` — review of the §1.6 ports (threat_patterns + StreamingContextScrubber) + the external-ingest door + the compression fact-injection wiring.
+- `p0-1.9-threat-model-v1.md` — the §1.9 **threat model v1** (the Plan §1.9 deliverable + §1.16 exit-gate artefact) **and** the net-new-code security review of the at-rest-encryption + RBAC/ABAC foundations. (Named for the Plan deliverable, not the `-review` convention.)
 
 ## 中文
 逐组件的安全评审记录。Hermes 为 MIT、"按原样"提供且无担保（PRD §2.7），故**我们从其移植的每个文件**在受监管
@@ -23,3 +24,4 @@ regulated product is reviewed too**. A checklist plus conclusions, named
 - `p0-1.4-vector-entity-providers-review.md` — §1.4 向量库 + Candidate/Semantic provider + 最小 Composite 的评审。
 - `p0-1.5-hr-memory-governance-review.md` — §1.5 治理包（写门控、偏见卫生、RBAC、擦除、审计）+ 受治理记忆工具的评审。
 - `p0-1.6-injection-defence-review.md` — §1.6 移植（threat_patterns + StreamingContextScrubber）+ 外部 ingest 入口 + 压缩事实注入接线的评审。
+- `p0-1.9-threat-model-v1.md` — §1.9 **威胁模型 v1**（计划 §1.9 交付物 + §1.16 退出门禁产物）**兼** 静态加密 + RBAC/ABAC 两项基础的新增代码安全评审。（按计划交付物命名，非 `-review` 约定。）

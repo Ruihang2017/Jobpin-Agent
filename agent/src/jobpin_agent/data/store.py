@@ -25,6 +25,7 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
+from ..security.db_encryption import open_encrypted_db
 from .audit import AuditStore
 from .migrations import LATEST, migrate
 from .schema import Application, Candidate, Consent, Interview, Job, MemoryRecord, Org, User
@@ -43,14 +44,16 @@ class CanonicalStore:
     OR REPLACE；每个 ``get_*`` 返回类型化数据类或 None——皆由共享锁串行。
     """
 
-    def __init__(self, db_path: str = ":memory:") -> None:
+    def __init__(self, db_path: str = ":memory:", cipher_key: bytes | None = None) -> None:
         """Open the store, migrate to the latest schema, and wire the shared thread-safe audit.
 
-        EN: Args: db_path. 中文：参数：db_path。
+        EN: Args: db_path; cipher_key (when given, the DB is opened SQLCipher-encrypted at rest — §1.9;
+            None ⇒ plain sqlite3, the default). 中文：参数：db_path；cipher_key（给定时数据库以 SQLCipher 静态加密
+            打开——§1.9；None ⇒ 普通 sqlite3，默认）。
         """
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn = open_encrypted_db(db_path, cipher_key, check_same_thread=False)
         self._lock = threading.Lock()
         with self._lock:
             migrate(self._conn, LATEST)

@@ -338,7 +338,7 @@ of the change — a PR that alters behaviour/structure without the matching doc 
 **Status:**
 - **`main` now holds §1.1 → §1.7** (merged via PRs #3–#8; `origin/main` tip = the §1.7 merge). The
   per-point "**Not merged**" notes on §1.2–§1.7 below are **historical** (they were written pre-merge).
-  **§1.8 is complete on `phase0/1.8-canonical-data-audit` (off `main`) and is the one point not yet merged.**
+  **§1.8 and §1.9 are complete and stacked (`phase0/1.9-security-baseline` off `phase0/1.8-canonical-data-audit` off `main`) — the two points not yet merged.**
 - Restructure + **§1.1 Agent Core: merged to `main`** (two PRs). `main` holds the full §1.1 + the
   .env / chat / observability / docs follow-ons.
 - Phase 0 **§1.2 file-backed `MemoryStore`: complete + MERGED to `main`** (PR #4) on
@@ -416,13 +416,27 @@ of the change — a PR that alters behaviour/structure without the matching doc 
   full suite 214 passed, 2 skipped.** **Not merged.** Deferred: full 16-entity model + event sourcing +
   multi-tenant infra → Phase 2; emitter rewire + crypto tamper-evidence → Phase 2; canonical↔§1.4 sync +
   real entity rows → M3; the APP-12 access portal → F3.6.
+- Phase 0 **§1.9 Security baseline (at-rest encryption + RBAC/ABAC): complete** on
+  `phase0/1.9-security-baseline` (off `phase0/1.8-…`); **one cohesive cycle** — the two Phase-0 foundations the
+  owner kept (field-level enc / secrets / SSO / app-signing deferred; Plan §1.9 restructured EN+中文). Net-new
+  `security/{cipher,keystore,db_encryption,rbac}.py`: AES-256-GCM + HKDF subkeys; OS-keystore master key
+  (Windows **DPAPI working**, macOS Keychain, insecure Dev fallback — never at-rest plaintext); `open_encrypted_db`
+  (SQLCipher when keyed, plain `sqlite3` default) wired into all 6 SQLite stores + the §1.2 file store (opt-in;
+  **off-path byte-identical**); the RBAC/ABAC engine as the **§1.5 same source** (`principal_for` + `authorize`
+  → `rejected:rbac`). Dep verified: `sqlcipher3>=0.6.2` ships a prebuilt Windows wheel (no compiler) + `cryptography`.
+  **`agent_loop.py` + `governance/` byte-unchanged** (git-verified). Triple-reviewed (all three **YES**; fixes:
+  `org_id` made a live ABAC check, the encryption flag **fails loud**, off-path re-raise, +3 tests; Plan-first
+  §1.13/§1.16 signing-deferral reconciliation + "safe harbour"→"serious-harm-mitigating" EN+中文). Threat-model v1
+  (`docs/security/p0-1.9-threat-model-v1.md`) + bilingual devlog. **23 §1.9 tests; full suite 240 passed, 2 skipped.**
+  **Not merged.** Deferred behind seams: composition root (live encryption + RBAC-on-recall) → §1.1 app entry;
+  secrets store → §1.11; field-level enc / SSO / signing → Phase 1+; audit tamper-chaining → Phase 2.
 
-**Branch:** `phase0/1.8-canonical-data-audit` (off `main`, which holds §1.1–§1.7).
+**Branch:** `phase0/1.9-security-baseline` (off `phase0/1.8-canonical-data-audit`, off `main` which holds §1.1–§1.7).
 
 **Immediate next steps:**
-1. **Land §1.8:** owner merges `phase0/1.8-canonical-data-audit → main` (kept gate; auto-deploys Netlify).
-2. **Next planned point — §1.9 (Security baseline, local-first):** RBAC/ABAC (same source as the §1.5
-   `rbac.scope_predicate`, now reading the §1.8 `User`/`Org` entities), at-rest encryption (DPAPI/Keychain
-   master key), and the first threat-modelling review. (Then §1.10 = integration/MCP connectors; §1.11 =
-   model router + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture
-   spikes, incl. the Temporal/LangGraph upgrade decision for §1.7.)
+1. **Land §1.8 then §1.9:** owner merges `phase0/1.8-canonical-data-audit → main`, then
+   `phase0/1.9-security-baseline → main` (kept gate; auto-deploys Netlify).
+2. **Next planned point — §1.10 (Integration framework):** the connector SDK + anti-corruption layer + one
+   read-only ATS/HRIS via MCP + the "fully local" outbound switch + per-egress audit. (Then §1.11 = model router
+   + de-id + résumé parsing + streaming + the real lossy LLM summariser; §1.12 = the architecture spikes, incl.
+   the Temporal/LangGraph upgrade decision for §1.7.)

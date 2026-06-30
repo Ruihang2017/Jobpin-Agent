@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
+from ..security.db_encryption import open_encrypted_db
 import uuid
 
 from .hooks import MemoryHooks, NoOpHooks
@@ -68,7 +70,8 @@ class SessionStore:
     会话（包括经 ``parent_id`` 关联的委派子会话）。
     """
 
-    def __init__(self, db_path: str = ":memory:", hooks: MemoryHooks | None = None) -> None:
+    def __init__(self, db_path: str = ":memory:", hooks: MemoryHooks | None = None,
+                 cipher_key: bytes | None = None) -> None:
         """Open (or create) the store and ensure the schema exists.
 
         EN —
@@ -81,7 +84,7 @@ class SessionStore:
             db_path：SQLite 路径；``:memory:`` 为进程内临时库。
             hooks：会话切换时通知的记忆钩子（默认 NoOp）。
         """
-        self._conn = sqlite3.connect(db_path)
+        self._conn = open_encrypted_db(db_path, cipher_key)
         self._hooks = hooks or NoOpHooks()
         self._conn.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, parent_id TEXT)")
         self._conn.execute(
