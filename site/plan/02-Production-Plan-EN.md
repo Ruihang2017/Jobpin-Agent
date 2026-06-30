@@ -537,6 +537,8 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 
 **What (contract)**: A uniform integration skeleton that translates external systems (ATS/HRIS/calendar/email) into canonical entities; exposed as **MCP** tools; with all integrations being **outbound, optional, switchable-off** calls (local-first).
 
+> **Phase 0 scope decision (2026-06-30)**: Phase 0 ships the integration **framework** — the connector SDK + anti-corruption layer, the MCP **tool-exposure skeleton** (connector ops as `ToolSpec`s in the existing `ToolRegistry`; a live MCP **server/transport** is the §1.12 spike 5), the **"fully local" switch**, and the **per-egress audit** — proven against a **fake read-only ATS connector** with contract tests (no PII, no network). The **live real-ATS/HRIS connection is deferred** until **both** real credentials exist **and** the §1.11 de-identification pipeline is built: pulling/pushing real candidate PII to a live external system with no de-id would violate local-first / APP 8 ("no PII outbound without de-id"). This mirrors §1.1 (`ModelProvider` + `FakeProvider` shipped; the live `OpenAIProvider` only because an account existed). Bidirectional sync / multiple connectors remain Phase 1–2. The "fully local ⇒ 0 outbound" guarantee (exit criterion 2) is delivered now.
+
 **Scope**:
 - **Connector SDK + anti-corruption layer**: a translation layer from the external data model → canonical entities, isolating external schema drift.
 - **MCP tooling**: integrations are exposed as MCP tools, avoiding private glue for each integration (Section 2.5 of the PRD).
@@ -552,7 +554,7 @@ MemoryRecord := { memory_key, store_kind ∈ {file, vector, struct},
 **Implementation Notes (How)**: external fields do not enter canonical entities directly but must be mapped through the anti-corruption layer (an external ATS changing a field touches only the anti-corruption layer, not the 1.8 schema); each outbound logs `actor / action=egress / target / reason / result` + the field set + de-identification status (de-identification is pre-applied by the 1.11 `deid`).
 
 **Exit Criteria**:
-- Read-only pull data from one real ATS/HRIS → translate via the anti-corruption layer into canonical entities → into the local store, switchable off throughout.
+- Read-only pull data from an ATS/HRIS connector (**Phase 0**: contract-tested against a **fake** connector; the **live** real-ATS connection is gated on real credentials **+** the §1.11 de-id pipeline — see the scope decision) → translate via the anti-corruption layer into canonical entities → into the local store, switchable off throughout.
 - When the "fully local" switch is on, the integration layer makes 0 outbound calls (dedicated test).
 
 ---
